@@ -1,0 +1,539 @@
+# Copyright 2023-present, Argilla, Inc.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+import os
+import traceback
+import time
+from pathlib import Path
+from queue import Queue
+from multiprocessing.synchronize import Lock
+from typing import Any, Dict, List, Optional, Union, cast
+
+from distilabel.constants import LAST_BATCH_SENT_FLAG
+from distilabel.errors import DISTILABEL_DOCS_URL
+from distilabel.exceptions import DistilabelOfflineBatchGenerationNotFinishedException
+from distilabel.models.mixins.cuda_device_placement import CudaDevicePlacementMixin
+from distilabel.models.mixins.vllm_server_sharing import VLLMServerSharingMixin
+from distilabel.pipeline.batch import _Batch
+from distilabel.steps.base import GeneratorStep, Step, _Step
+from distilabel.typing import StepLoadStatus
+
+
+class _StepWrapper:
+    """Wrapper to run the `Step`.
+
+    Attributes:
+        step: The step to run.
+        replica: The replica ID assigned.
+        input_queue: The queue to receive the input data.
+        output_queue: The queue to send the output data.
+        load_queue: The queue used to notify the main process that the step has been loaded,
+            has been unloaded or has failed to load.
+        is_route_step: Whether the step is a route step.
+    """
+
+    def __init__(
+        self,
+        step: Union["Step", "GeneratorStep"],
+        replica: int,
+        input_queue: "Queue[_Batch]",
+        output_queue: "Queue[_Batch]",
+        load_queue: "Queue[Union[StepLoadStatus, None]]",
+        dry_run: bool = False,
+        ray_pipeline: bool = False,
+        is_route_step: bool = False,
+        cache_location: Path = Path(),
+    ) -> None:
+        """Initializes the `_ProcessWrapper`.
+
+        Args:
+            step: The step to run.
+            input_queue: The queue to receive the input data.
+            output_queue: The queue to send the output data.
+            load_queue: The queue used to notify the main process that the step has been
+                loaded, has been unloaded or has failed to load.
+            dry_run: Flag to ensure we are forcing to run the last batch.
+            ray_pipeline: Whether the step is running a `RayPipeline` or not.
+            is_route_step: Whether the step is a route step.
+            cache_location: The root directory of the batches cache.
+        """
+        self.step = step
+        self.replica = replica
+        self.input_queue = input_queue
+        self.output_queue = output_queue
+        self.load_queue = load_queue
+        self.dry_run = dry_run
+        self.ray_pipeline = ray_pipeline
+        self.is_route_step = is_route_step
+        self._init_cuda_device_placement()
+        self._loaded = False
+        self._cache_location = cache_location
+
+    def _sanitized_step_for_exception(self) -> "_Step":
+        """Return a sanitized copy of the step that is safe to pickle.
+
+        Strategy:
+        - Rebuild the step from its public fields using `model_dump` and
+          `model_validate` (avoids deepcopying objects that may hold thread locks).
+        - Explicitly null `_logger` on the rebuilt step and on any nested attributes
+          that may have their own `_logger`.
+        - Ensure obviously non-picklable runtime attachments like `pipeline` remain None.
+        """
+        data = self.step.model_dump(mode="python")
+        try:
+            step_copy = type(self.step).model_validate(data)  # type: ignore[attr-defined]
+        except Exception:
+            # As a fallback, build without validation. This sets fields directly.
+            step_copy = type(self.step).model_construct(**data)  # type: ignore[attr-defined]
+
+        # Remove pipeline reference if any
+        try:
+            if getattr(step_copy, "pipeline", None) is not None:
+                step_copy.pipeline = None  # type: ignore[attr-defined]
+        except Exception:
+            pass
+
+        # Clear logger on the step
+        try:
+            if hasattr(step_copy, "_logger"):
+                step_copy._logger = None  # type: ignore[attr-defined]
+        except Exception:
+            pass
+
+        # Best-effort cleanup of nested attributes with `_logger`
+        try:
+            for field_name in getattr(step_copy, "model_fields_set", []):
+                attr = getattr(step_copy, field_name, None)
+                if attr is None:
+                    continue
+                try:
+                    if hasattr(attr, "_logger"):
+                        attr._logger = None  # type: ignore[attr-defined]
+                except Exception:
+                    pass
+        except Exception:
+            pass
+
+        return step_copy
+
+    def _init_cuda_device_placement(self) -> None:
+        """Sets the LLM identifier and the number of desired GPUs of the `CudaDevicePlacementMixin`"""
+
+        def _init_cuda_device_placement_mixin(attr: CudaDevicePlacementMixin) -> None:
+            if self.ray_pipeline:
+                attr.disable_cuda_device_placement = True
+            else:
+                desired_num_gpus = self.step.resources.gpus or 1
+                attr._llm_identifier = f"{self.step.name}-replica-{self.replica}"
+                attr._desired_num_gpus = desired_num_gpus
+
+        def _init_vllm_server_sharing_mixin(attr: VLLMServerSharingMixin) -> None:
+            # Ensure replica id and llm identifier are propagated for sharing election
+            attr._replica_id = self.replica
+
+        for field_name in self.step.model_fields_set:
+            attr = getattr(self.step, field_name)
+            if isinstance(attr, CudaDevicePlacementMixin):
+                _init_cuda_device_placement_mixin(attr)
+            if isinstance(attr, VLLMServerSharingMixin):
+                _init_vllm_server_sharing_mixin(attr)
+
+        if isinstance(self.step, CudaDevicePlacementMixin):
+            _init_cuda_device_placement_mixin(self.step)
+        if isinstance(self.step, VLLMServerSharingMixin):
+            _init_vllm_server_sharing_mixin(self.step)
+
+    def run(self) -> str:
+        """The target function executed by the process. This function will also handle
+        the step lifecycle. For `GeneratorStep`s it will execute the `load` method first.
+        For normal `Step`s, the `load` method will be executed lazily when the first
+        batch is received.
+
+        Returns:
+            The name of the step that was executed.
+        """
+        if self.step.is_generator:
+            self.load_step()
+
+        self._notify_load()
+
+        try:
+            if self.step.is_generator:
+                self._generator_step_process_loop()
+            else:
+                self._non_generator_process_loop()
+        except Exception as e:
+            if self._loaded:
+                self.step.unload()
+            
+            self.step._logger.error(
+                f"Error in step '{self.step.name}' (replica ID: {self.replica}): {e}\n"
+                f"{traceback.format_exc()}"
+            )
+
+            # if it's not a load error, we need to notify unload.
+            if not (isinstance(e, _StepWrapperException) and e.is_load_error):
+                self._notify_unload()
+
+            if not isinstance(e, _StepWrapperException):
+                raise _StepWrapperException(str(e), self._sanitized_step_for_exception(), 2, e) from e
+            raise e
+
+        if self._loaded:
+            self.step.unload()
+
+        self._notify_unload()
+
+        self.step._logger.info(
+            f"🏁 Finished running step '{self.step.name}' (replica ID: {self.replica})"
+        )
+
+        return self.step.name  # type: ignore
+
+    def load_step(self) -> None:
+        """Loads the step."""
+        try:
+            self.step.load()
+            self._loaded = True
+        except Exception as e:
+            # Log original traceback before sanitizing/forwarding
+            self.step._logger.error(
+                f"Load failed for step '{self.step.name}' (replica ID: {self.replica}): {e}\n"
+                f"{traceback.format_exc()}"
+            )
+            self.step.unload()
+            self._notify_load_failed()
+            raise _StepWrapperException.create_load_error(
+                message=f"Step load failed: {e}",
+                step=self._sanitized_step_for_exception(),
+                subprocess_exception=e,
+            ) from e
+
+    def _notify_load(self) -> None:
+        """Notifies that the step has finished executing its `load` function successfully."""
+        self.step._logger.debug(
+            f"Notifying load of step '{self.step.name}' (replica ID {self.replica})..."
+        )
+        self.load_queue.put({"name": self.step.name, "status": "loaded"})  # type: ignore
+
+    def _notify_unload(self) -> None:
+        """Notifies that the step has been unloaded."""
+        self.step._logger.debug(
+            f"Notifying unload of step '{self.step.name}' (replica ID {self.replica})..."
+        )
+        self.load_queue.put({"name": self.step.name, "status": "unloaded"})  # type: ignore
+
+    def _notify_load_failed(self) -> None:
+        """Notifies that the step failed to load."""
+        self.step._logger.debug(
+            f"Notifying load failed of step '{self.step.name}' (replica ID {self.replica})..."
+        )
+        self.load_queue.put({"name": self.step.name, "status": "load_failed"})  # type: ignore
+
+    def cache_key(self, batch: "_Batch") -> Path:
+        # the cache maps (batch, step its going to) -> (response)
+        # if the same batch goes to the same type of step, 
+        # then we expect the same response and load it from the cache
+        step_class_name = self.step.__class__.__name__
+        return (
+            self._cache_location / f'{batch.signature}_{step_class_name}.json'
+        )
+
+    def _generator_step_process_loop(self) -> None:
+        """Runs the process loop for a generator step. It will call the `process` method
+        of the step and send the output data to the `output_queue` and block until the next
+        batch request is received (i.e. receiving an empty batch from the `input_queue`).
+
+        If the `last_batch` attribute of the batch is `True`, the loop will stop and the
+        process will finish.
+
+        Raises:
+            _StepWrapperException: If an error occurs during the execution of the
+                `process` method.
+        """
+        step = cast("GeneratorStep", self.step)
+
+        try:
+            batch = self.input_queue.get()
+            if batch is None:
+                self.step._logger.info(
+                    f"🛑 Stopping yielding batches from step '{self.step.name}'"
+                )
+                return
+            offset = batch.seq_no * step.batch_size  # type: ignore
+
+            self.step._logger.info(
+                f"🚰 Starting yielding batches from generator step '{self.step.name}'."
+                f" Offset: {offset}"
+            )
+            for data, last_batch in step.process_applying_mappings(offset=offset):
+                batch.set_data([data])
+                batch.last_batch = self.dry_run or last_batch
+                self._send_batch(batch)
+
+                if batch.last_batch:
+                    return
+
+                self.step._logger.debug(
+                    f"Step '{self.step.name}' waiting for next batch request..."
+                )
+                batch = None
+                while batch is None: # allows breakpointing
+                    try:
+                        batch = self.input_queue.get(timeout=10)
+                    except:
+                        continue
+
+                if batch is None:
+                    self.step._logger.info(
+                        f"🛑 Stopping yielding batches from step '{self.step.name}'"
+                    )
+                    return
+        except Exception as e:
+            raise _StepWrapperException(str(e), self._sanitized_step_for_exception(), 2, e) from e
+
+    def _count_none(self, data: List[Dict[str, Any]]) -> int:
+        none_allowed_fields = getattr(self.step, 'none_allowed_fields', [])
+        return sum(
+            1 for row in data
+            if any(
+                row.get(self.step.output_mappings.get(col, col), -1) is None 
+                for col in self.step.outputs if (
+                    col != 'reasoning'
+                    and col not in none_allowed_fields
+                )
+            )
+        )
+
+    def _non_generator_process_loop(self) -> None:
+        """Runs the process loop for a non-generator step. It will call the `process`
+        method of the step for each batch received from the input queue.
+        """
+        step = cast("Step", self.step)
+        step._logger.info(f"✨ Starting process loop for step '{step.name}'...")
+        while True:
+            if self.is_route_step:
+                # For route steps, we want to ensure that we have at least two items
+                # or the LAST_BATCH_SENT_FLAG before processing a batch. This is to
+                # ensure that we can determine if the current batch is the actual
+                # last batch for this specific route, as the batch with last_batch = True
+                # from the predecessor might go to a different route.
+                while True:
+                    batch, counts = self.input_queue.pop_if(
+                        lambda n_batches_, n_flags_, n_none_: n_batches_ >= 2 or n_flags_ > 0,
+                    )
+                    if batch is not None:
+                        break
+                    time.sleep(5)
+            else:
+                batch, counts = self.input_queue.get_with_counts()
+
+            if batch is None:
+                self.step._logger.info(
+                    f"🛑 Stopping processing batches from step '{self.step.name}' (replica"
+                    f" ID: {self.replica})"
+                )
+                break
+        
+            n_batches, n_flags, n_none = counts
+
+            if isinstance(batch, _Batch) and batch.data_path is not None:
+                self.step._logger.debug(f"Reading batch data from '{batch.data_path}'")
+                batch.read_batch_data_from_fs()
+
+            # get the cache key before any modifications to the received batch
+            # so that we can correctly map the sent batch to the response
+            cache_key = Path('none')
+            if self.step.use_cache:
+                cache_key = self.cache_key(batch) if isinstance(batch, _Batch) else Path('none')
+            # Since only one of the route steps will receive a batch with last_batch = True, if this step is a route step, 
+            # it likely won't receive a batch with last_batch = True and needs to create this
+            # itself once it knows which batch is actually the last one for it.
+            if (
+                self.is_route_step
+                and batch != LAST_BATCH_SENT_FLAG
+                # the next condition checks if all remaining batches are either none or last batch flags
+                and (n_flags + n_none) > 0 and n_batches == 0
+            ):
+                batch.route_step_last_batch = True  # type: ignore
+
+            # handle cache hit
+            # but we want route_step_last_batch logic to be handled normally
+            # so it comes after that
+            if (
+                self.step.use_cache
+                and not self.step.invalidate_cache
+                and _Batch.cached(cache_key) 
+            ):
+                response = _Batch.from_json(cache_key)
+                response.route_step_last_batch = batch.route_step_last_batch
+                response.last_batch = batch.last_batch
+                none_count = self._count_none(response.data[0])
+                if len(response.data[0]) == 0 or none_count >= 0.5 * len(response.data[0]):
+                    self.step._logger.warning(
+                        f"Cache hit for batch {batch.seq_no} but response is empty and/or "
+                        f"{none_count}/{len(response.data[0])} of its values are None. "
+                        "This cache will be removed."
+                    )
+                    os.unlink(cache_key)
+                else:
+                    self.step._logger.info(f"🔍 Cache hit for batch {batch.seq_no}")
+                    self._send_batch(response)
+                    if response.last_batch or response.route_step_last_batch:
+                        break
+                    continue
+
+            if batch == LAST_BATCH_SENT_FLAG:
+                self.step._logger.debug("Received `LAST_BATCH_SENT_FLAG`. Stopping...")
+                break
+
+            self.step._logger.info(
+                f"📦 Processing batch {batch.seq_no} in '{batch.step_name}' (replica ID: {self.replica})"
+            )
+            # lazy loading of the step, if we end up with all cache hits,
+            # we don't need to load the step
+            if not self._loaded:
+                self.load_step()
+
+            result = []
+            try:
+                if self.step.has_multiple_inputs():
+                    result = next(step.process_applying_mappings(*batch.data))
+                else:
+                    result = next(step.process_applying_mappings(batch.data[0]))
+            except Exception as e:
+                if self.step.is_global:
+                    self.step.unload()
+                    self._notify_unload()
+                    data = (
+                        batch.data
+                        if isinstance(
+                            e, DistilabelOfflineBatchGenerationNotFinishedException
+                        )
+                        else None
+                    )
+                    raise _StepWrapperException(str(e), self._sanitized_step_for_exception(), 2, e, data) from e
+
+                # Impute step outputs columns with `None`
+                result = self._impute_step_outputs(batch)
+
+                # if the step is not global then we can skip the batch which means sending
+                # an empty batch to the output queue
+                self.step._logger.warning(
+                    f"⚠️ Processing batch {batch.seq_no} with step '{self.step.name}' failed."
+                    " Sending empty batch filled with `None`s..."
+                )
+                self.step._logger.warning(
+                    f"Subprocess traceback:\n{e}\n\n{traceback.format_exc()}"
+                )
+            finally:
+                batch.set_data([result])
+                if self.step.use_cache:
+                    none_count = self._count_none(result)
+                    if len(result) == 0 or none_count >= 0.5 * len(result):
+                        self.step._logger.warning(
+                            f"Batch {batch.seq_no} response is empty and/or "
+                            f"{none_count}/{len(result)} of its values are None. "
+                            "This batch will not be cached."
+                        )
+                    else:
+                        batch.cache(cache_key)
+                self._send_batch(batch)
+
+            if batch.last_batch or batch.route_step_last_batch:
+                break
+
+    def _impute_step_outputs(self, batch: "_Batch") -> List[Dict[str, Any]]:
+        """Imputes the step outputs columns with `None` in the batch data.
+
+        Args:
+            batch: The batch to impute.
+        """
+        if len(batch.data) == 0:
+            return []
+        out = self.step.impute_step_outputs(batch.data[0])
+        batch.invalidate_signature_cache()
+        return out
+
+    def _send_batch(self, batch: _Batch) -> None:
+        """Sends a batch to the `output_queue`."""
+        if batch.data_path is not None:
+            self.step._logger.debug(f"Writing batch data to '{batch.data_path}'")
+            batch.write_batch_data_to_fs()
+
+        self.step._logger.info(
+            f"📨 Step '{batch.step_name}' sending batch {batch.seq_no} to output queue"
+        )
+        self.output_queue.put(batch)
+
+
+class _StepWrapperException(Exception):
+    """Exception to be raised when an error occurs in the `_StepWrapper` class.
+
+    Attributes:
+        message: The error message.
+        step: The `Step` that raised the error.
+        code: The error code.
+        subprocess_exception: The exception raised by the subprocess.
+        data: The data that caused the error. Defaults to `None`.
+    """
+
+    def __init__(
+        self,
+        message: str,
+        step: "_Step",
+        code: int,
+        subprocess_exception: Exception,
+        data: Optional[List[List[Dict[str, Any]]]] = None,
+    ) -> None:
+        self.message = f"{message}\n\nFor further information visit '{DISTILABEL_DOCS_URL}api/pipeline/step_wrapper'"
+        self.step = step
+        self.code = code
+        self.subprocess_exception = subprocess_exception
+        self.formatted_traceback = "".join(
+            traceback.format_exception(
+                type(subprocess_exception),
+                subprocess_exception,
+                subprocess_exception.__traceback__,
+            )
+        )
+        self.data = data
+
+    @classmethod
+    def create_load_error(
+        cls,
+        message: str,
+        step: "_Step",
+        subprocess_exception: Optional[Exception] = None,
+    ) -> "_StepWrapperException":
+        """Creates a `_StepWrapperException` for a load error.
+
+        Args:
+            message: The error message.
+            step: The `Step` that raised the error.
+            subprocess_exception: The exception raised by the subprocess. Defaults to `None`.
+
+        Returns:
+            The `_StepWrapperException` instance.
+        """
+        return cls(message, step, 1, subprocess_exception, None)
+
+    @property
+    def is_load_error(self) -> bool:
+        """Whether the error is a load error.
+
+        Returns:
+            `True` if the error is a load error, `False` otherwise.
+        """
+        return self.code == 1

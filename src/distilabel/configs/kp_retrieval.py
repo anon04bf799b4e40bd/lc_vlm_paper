@@ -1,0 +1,167 @@
+import dotenv
+from pathlib import Path
+dotenv.load_dotenv()
+
+from distilabel.pydantics import (
+    Config, 
+    Stage, 
+    LMConfig, 
+    PromptSamplerConfig,
+    CategoricalDist,
+)
+
+# can take a value from a table, plot or diagram
+
+pos_extraction_ps = PromptSamplerConfig(
+    distributions={
+        'extraction_goal': CategoricalDist(
+            choices=[
+                ('first sentence (not including headers and separated specifically by periods)', 2),
+                ('second sentence (not including headers and separated specifically by periods)', 2),
+                ('third sentence (not including headers and separated specifically by periods)', 2),
+                ('last sentence (not including headers and separated specifically by periods)', 2),
+                ('second from last (meaning the one right before the last one) sentence (not including headers and separated specifically by periods)', 2),
+                ('first sentence (not including headers and separated specifically by periods) of the first paragraph (paragraphs separated by \n\n and excluding headers)', 2),
+                ('second sentence (not including headers and separated specifically by periods) of the first paragraph (paragraphs separated by \n\n and excluding headers)', 2),
+                ('third sentence (not including headers and separated specifically by periods) of the first paragraph (paragraphs separated by \n\n and excluding headers)', 2),
+                ('last sentence (not including headers and separated specifically by periods) of the first paragraph (paragraphs separated by \n\n and excluding headers)', 2),
+                ('first sentence (not including headers and separated specifically by periods) of the second paragraph (paragraphs separated by \n\n and excluding headers)', 2),
+                ('second sentence (not including headers and separated specifically by periods) of the second paragraph (paragraphs separated by \n\n and excluding headers)', 2),
+                ('third sentence (not including headers and separated specifically by periods) of the second paragraph (paragraphs separated by \n\n and excluding headers)', 2),
+                ('last sentence (not including headers and separated specifically by periods) of the second paragraph (paragraphs separated by \n\n and excluding headers)', 2),
+                ('first sentence (not including headers and separated specifically by periods) of the last paragraph (paragraphs separated by \n\n and excluding headers)', 2),
+                ('second sentence (not including headers and separated specifically by periods) of the last paragraph (paragraphs separated by \n\n and excluding headers)', 2),
+                ('third sentence (not including headers and separated specifically by periods) of the last paragraph (paragraphs separated by \n\n and excluding headers)', 2),
+                ('last sentence (not including headers and separated specifically by periods) of the last paragraph (paragraphs separated by \n\n and excluding headers)', 2),
+                ('first sentence (not including headers and separated specifically by periods) of the second from last (meaning the one right before the last one) paragraph (paragraphs separated by \n\n and excluding headers)', 2),
+                ('second sentence (not including headers and separated specifically by periods) of the second from last (meaning the one right before the last one) paragraph (paragraphs separated by \n\n and excluding headers)', 2),
+                ('last sentence (not including headers and separated specifically by periods) of the second from last (meaning the one right before the last one) paragraph (paragraphs separated by \n\n and excluding headers)', 2),
+                ('first paragraph (paragraphs separated by \n\n and excluding headers)', 4),
+                ('second paragraph (paragraphs separated by \n\n and excluding headers)', 4),
+                ('last paragraph (paragraphs separated by \n\n and excluding headers)', 4),
+                ('second from last (meaning the one right before the last one) paragraph (paragraphs separated by \n\n and excluding headers)', 4),
+            ],
+        ),
+    }
+)
+
+key_extraction_ps = PromptSamplerConfig(
+    distributions={
+        'sentence_or_paragraph': CategoricalDist(
+            choices=[
+                ('sentence', 1),
+                ('paragraph', 1),
+            ],
+        ),
+        'height_percent': CategoricalDist(
+            choices=[
+                ('10%', 1),
+                ('20%', 1),
+                ('30%', 1),
+                ('40%', 1),
+                ('50%', 1),
+                ('60%', 1),
+                ('70%', 1),
+                ('80%', 1),
+                ('90%', 1),
+            ],
+        ),
+    }
+)
+
+work_dir = Path('/lustre/fswork/projects/rech/eya/abcdefg/')
+scratch_dir = Path('/lustre/fsn1/projects/rech/eya/abcdefg/')
+
+EXCLUDE_PDFS = set((work_dir / 'distilabel/bench_pdfs.txt').read_text().splitlines())
+DS_PATH = work_dir / 'data' / 'scraped_and_pdfa'
+IMAGES_DS_PATH = work_dir / 'data' / 'all_pdfs_images_ds'
+PDF_ROOT = scratch_dir / 'pdfs'
+CACHE_DIR = scratch_dir / 'distilabel/out'
+AVAILABLE_GPUS = [0, 1, 2, 3]
+PATH_SUBSTITUTION = ('/lustre/fsn1/projects/rech/eya/abcdefg/pdfs/', '/mnt/nfs/pdfs/')
+
+stages = [
+    # Stage 0: Transcribe the page
+    Stage(
+        lm_configs=[
+            LMConfig(
+                # path='google/gemma-3-27b-it',
+                path='Qwen/Qwen2.5-VL-32B-Instruct', 
+                # path='Qwen/Qwen2.5-VL-7B-Instruct', 
+                data_ratio=1.0, 
+                task_name='transcribe',
+                temperature=0.0,
+                max_new_tokens=4096,
+                tp_size=None,
+                replicas=32,
+                vllm_kwargs={
+                    'limit-mm-per-prompt': "'{\"image\": 336}'", 
+                    'quantization': 'fp8',
+                    'max-model-len': '96000',
+                    'gpu-memory-utilization': 0.95,
+                },
+                out_model=None,
+                system_template_path='distilabel/prompts/transcribe.txt',
+                prompt_sampler_config=PromptSamplerConfig(),
+            ),
+        ],
+        available_gpus=AVAILABLE_GPUS,
+        max_dims=(1000, 1000),
+    ),
+    Stage(
+        lm_configs=[
+            LMConfig(  # key selection
+                # path='google/gemma-3-27b-it',
+                path='Qwen/Qwen2.5-VL-32B-Instruct', 
+                # path='Qwen/Qwen2.5-VL-7B-Instruct', 
+                data_ratio=1.0, 
+                task_name='key_extraction',
+                temperature=0.2,
+                max_new_tokens=4096,
+                tp_size=None,
+                replicas=32,
+                vllm_kwargs={
+                    'limit-mm-per-prompt': "'{\"image\": 336}'", 
+                    'quantization': 'fp8',
+                    'max-model-len': '96000',
+                    'gpu-memory-utilization': 0.95,
+                },
+                out_model='KeyExtraction',
+                system_template_path='distilabel/prompts/key_extraction.txt',
+                prompt_sampler_config=key_extraction_ps,
+                path_substitution=('/mnt/nfs/pdfs/', '/lustre/fsn1/projects/rech/eya/abcdefg/pdfs/'),
+            ),
+        ],
+        available_gpus=AVAILABLE_GPUS,
+        max_dims=(1000, 1000),
+    ),
+    Stage(
+        lm_configs=[
+            LMConfig(  # pos extraction
+                # path='google/gemma-3-27b-it',
+                path='Qwen/Qwen2.5-VL-32B-Instruct', 
+                # path='Qwen/Qwen2.5-VL-7B-Instruct', 
+                data_ratio=1.0, 
+                task_name='pos_extraction',
+                temperature=0.2,
+                max_new_tokens=4096,
+                tp_size=None,
+                replicas=32,
+                vllm_kwargs={
+                    'limit-mm-per-prompt': "'{\"image\": 336}'", 
+                    'quantization': 'fp8',
+                    'max-model-len': '96000',
+                    'gpu-memory-utilization': 0.95,
+                },
+                out_model='PosExtraction',
+                system_template_path='distilabel/prompts/pos_extraction.txt',
+                prompt_sampler_config=pos_extraction_ps,
+            ),
+        ],
+        available_gpus=AVAILABLE_GPUS,
+        max_dims=(1000, 1000),
+    ),
+]
+
+config = Config(stages=stages, use_running_vllm=True, path_substitution=PATH_SUBSTITUTION)
+
