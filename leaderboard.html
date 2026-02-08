@@ -1,0 +1,4703 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Evaluation Leaderboard</title>
+    <style>
+        :root {
+            --bg-primary: #0d1117;
+            --bg-secondary: #161b22;
+            --bg-tertiary: #21262d;
+            --text-primary: #e6edf3;
+            --text-secondary: #8b949e;
+            --text-muted: #6e7681;
+            --border-color: #30363d;
+            --accent: #58a6ff;
+            --accent-hover: #79c0ff;
+            --best-score: #3fb950;
+            --heat-high: #0d948a;
+            --heat-mid: #2d333b;
+            --heat-low: #a3456e;
+            --baseline-bg: rgba(88, 166, 255, 0.1);
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'SF Mono', 'Cascadia Code', 'Fira Code', monospace;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            line-height: 1.5;
+            min-height: 100vh;
+        }
+
+        .container {
+            max-width: 100%;
+            padding: 1.5rem;
+        }
+
+        header {
+            margin-bottom: 1.5rem;
+        }
+
+        h1 {
+            font-size: 1.5rem;
+            font-weight: 600;
+            color: var(--text-primary);
+            margin-bottom: 0.5rem;
+        }
+
+        .subtitle {
+            color: var(--text-secondary);
+            font-size: 0.875rem;
+        }
+
+        /* Controls Panel */
+        .controls {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 1rem;
+            margin-bottom: 1.5rem;
+            padding: 1rem;
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+        }
+
+        .control-group {
+            display: flex;
+            flex-direction: column;
+            gap: 0.375rem;
+        }
+
+        .control-group label {
+            font-size: 0.75rem;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        .search-input {
+            padding: 0.5rem 0.75rem;
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            color: var(--text-primary);
+            font-family: inherit;
+            font-size: 0.875rem;
+            min-width: 250px;
+        }
+
+        .search-input:focus {
+            outline: none;
+            border-color: var(--accent);
+        }
+
+        .filter-select {
+            padding: 0.5rem 0.75rem;
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            color: var(--text-primary);
+            font-family: inherit;
+            font-size: 0.875rem;
+            min-width: 120px;
+            cursor: pointer;
+        }
+
+        .filter-select:focus {
+            outline: none;
+            border-color: var(--accent);
+        }
+
+        .checkbox-group {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.75rem;
+        }
+
+        .checkbox-label {
+            display: flex;
+            align-items: center;
+            gap: 0.375rem;
+            cursor: pointer;
+            font-size: 0.875rem;
+        }
+
+        .checkbox-label input {
+            accent-color: var(--accent);
+        }
+
+        /* Buttons */
+        .btn {
+            padding: 0.5rem 1rem;
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            color: var(--text-primary);
+            font-family: inherit;
+            font-size: 0.875rem;
+            cursor: pointer;
+            transition: all 0.15s ease;
+        }
+
+        .btn:hover {
+            background: var(--border-color);
+            border-color: var(--text-muted);
+        }
+
+        .btn-primary {
+            background: var(--accent);
+            border-color: var(--accent);
+            color: var(--bg-primary);
+        }
+
+        .btn-primary:hover {
+            background: var(--accent-hover);
+            border-color: var(--accent-hover);
+        }
+
+        .btn-group {
+            display: flex;
+            gap: 0.5rem;
+            align-items: flex-end;
+        }
+
+        /* Table Container */
+        .table-container {
+            overflow: auto;
+            max-height: calc(100vh - 280px);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            background: var(--bg-secondary);
+        }
+
+        /* Table Styles */
+        table {
+            border-collapse: separate;
+            border-spacing: 0;
+            width: 100%;
+            font-size: 0.8125rem;
+        }
+
+        th, td {
+            padding: 0.625rem 0.75rem;
+            text-align: right;
+            border-bottom: 1px solid var(--border-color);
+            white-space: nowrap;
+        }
+
+        th {
+            background: var(--bg-tertiary);
+            color: var(--text-secondary);
+            font-weight: 500;
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            letter-spacing: 0.03em;
+            position: sticky;
+            top: 0;
+            z-index: 20;
+            cursor: pointer;
+            user-select: none;
+        }
+
+        th:hover {
+            color: var(--text-primary);
+            background: var(--border-color);
+        }
+
+        th.sort-asc::after {
+            content: ' ▲';
+            font-size: 0.625rem;
+        }
+
+        th.sort-desc::after {
+            content: ' ▼';
+            font-size: 0.625rem;
+        }
+
+        /* First column (checkpoint name) - sticky */
+        th:first-child,
+        td:first-child {
+            position: sticky;
+            left: 0;
+            z-index: 10;
+            text-align: left;
+            background: var(--bg-secondary);
+            min-width: 280px;
+            max-width: 350px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        th:first-child {
+            z-index: 30;
+            background: var(--bg-tertiary);
+        }
+
+        /* Row hover */
+        tbody tr:hover td {
+            background: var(--bg-tertiary);
+        }
+
+        tbody tr:hover td:first-child {
+            background: var(--bg-tertiary);
+        }
+
+        /* Baseline rows */
+        tr.baseline td {
+            background: var(--baseline-bg);
+        }
+
+        tr.baseline td:first-child {
+            background: var(--baseline-bg);
+            font-weight: 600;
+        }
+
+        tr.baseline:hover td,
+        tr.baseline:hover td:first-child {
+            background: rgba(88, 166, 255, 0.2);
+        }
+
+        /* Score styling */
+        .score-best {
+            font-weight: 700;
+            color: var(--best-score);
+        }
+
+        .score-na {
+            color: var(--text-muted);
+        }
+
+        .delta-positive {
+            color: var(--best-score);
+        }
+
+        .delta-negative {
+            color: var(--heat-low);
+        }
+
+        /* Column visibility dropdown */
+        .column-toggle {
+            position: relative;
+        }
+
+        .column-dropdown {
+            display: none;
+            position: absolute;
+            top: 100%;
+            left: 0;
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            padding: 0.75rem;
+            min-width: 200px;
+            max-height: 300px;
+            overflow-y: auto;
+            z-index: 100;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+        }
+
+        .column-dropdown.show {
+            display: block;
+        }
+
+        .column-dropdown label {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.25rem 0;
+            font-size: 0.8125rem;
+            cursor: pointer;
+        }
+
+        /* Toast notification */
+        .toast {
+            position: fixed;
+            bottom: 2rem;
+            right: 2rem;
+            padding: 0.75rem 1.25rem;
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            color: var(--text-primary);
+            font-size: 0.875rem;
+            opacity: 0;
+            transform: translateY(1rem);
+            transition: all 0.3s ease;
+            z-index: 1000;
+        }
+
+        .toast.show {
+            opacity: 1;
+            transform: translateY(0);
+        }
+
+        /* Stats bar */
+        .stats-bar {
+            display: flex;
+            gap: 1.5rem;
+            margin-bottom: 1rem;
+            font-size: 0.8125rem;
+            color: var(--text-secondary);
+        }
+
+        .stat {
+            display: flex;
+            gap: 0.375rem;
+        }
+
+        .stat-value {
+            color: var(--text-primary);
+            font-weight: 500;
+        }
+
+        /* Hidden rows */
+        tr.hidden {
+            display: none;
+        }
+
+        /* Hidden columns */
+        .col-hidden {
+            display: none;
+        }
+
+        /* Search-select dropdown */
+        .search-select-container {
+            position: relative;
+            min-width: 280px;
+        }
+
+        .search-dropdown {
+            display: none;
+            position: absolute;
+            top: 100%;
+            left: 0;
+            right: 0;
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            border-top: none;
+            border-radius: 0 0 6px 6px;
+            max-height: 250px;
+            overflow-y: auto;
+            z-index: 100;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+        }
+
+        .search-dropdown.show {
+            display: block;
+        }
+
+        .search-dropdown-item {
+            padding: 0.5rem 0.75rem;
+            cursor: pointer;
+            font-size: 0.8125rem;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .search-dropdown-item:last-child {
+            border-bottom: none;
+        }
+
+        .search-dropdown-item:hover {
+            background: var(--bg-tertiary);
+        }
+
+        .search-dropdown-item.selected {
+            background: var(--accent);
+            color: var(--bg-primary);
+        }
+
+        .search-dropdown-item .item-meta {
+            font-size: 0.6875rem;
+            color: var(--text-muted);
+            margin-top: 0.125rem;
+        }
+
+        .search-dropdown-item.selected .item-meta {
+            color: var(--bg-secondary);
+        }
+
+        .search-input.has-selection {
+            border-color: var(--accent);
+            background: rgba(88, 166, 255, 0.1);
+        }
+
+        /* Clickable checkpoint cells */
+        td.has-composition {
+            cursor: pointer;
+            position: relative;
+        }
+
+        td.has-composition::after {
+            content: '📊';
+            position: absolute;
+            right: 8px;
+            top: 50%;
+            transform: translateY(-50%);
+            font-size: 0.75rem;
+            opacity: 0.4;
+            transition: opacity 0.15s ease;
+        }
+
+        td.has-composition:hover {
+            background: var(--bg-tertiary) !important;
+        }
+
+        td.has-composition:hover::after {
+            opacity: 0.9;
+        }
+
+        tr.baseline td.has-composition:hover {
+            background: rgba(88, 166, 255, 0.2) !important;
+        }
+
+        /* Modal styles */
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.7);
+            z-index: 1000;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .modal-overlay.show {
+            display: flex;
+        }
+
+        .modal-content {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            max-width: 700px;
+            max-height: 80vh;
+            width: 90%;
+            overflow: hidden;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+        }
+
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 1rem 1.25rem;
+            border-bottom: 1px solid var(--border-color);
+            background: var(--bg-tertiary);
+            gap: 1rem;
+        }
+
+        .modal-header h2 {
+            font-size: 1rem;
+            font-weight: 600;
+            color: var(--text-primary);
+            margin: 0;
+            overflow-x: auto;
+            white-space: nowrap;
+            flex: 1;
+            scrollbar-width: thin;
+            scrollbar-color: var(--border-color) transparent;
+        }
+
+        .modal-header h2::-webkit-scrollbar {
+            height: 6px;
+        }
+
+        .modal-header h2::-webkit-scrollbar-track {
+            background: transparent;
+        }
+
+        .modal-header h2::-webkit-scrollbar-thumb {
+            background: var(--border-color);
+            border-radius: 3px;
+        }
+
+        .modal-header h2::-webkit-scrollbar-thumb:hover {
+            background: var(--text-muted);
+        }
+
+        .modal-close {
+            background: none;
+            border: none;
+            color: var(--text-secondary);
+            font-size: 1.5rem;
+            cursor: pointer;
+            padding: 0;
+            line-height: 1;
+        }
+
+        .modal-close:hover {
+            color: var(--text-primary);
+        }
+
+        .modal-body {
+            padding: 1.25rem;
+            overflow-y: auto;
+            max-height: calc(80vh - 60px);
+        }
+
+        .comp-section {
+            margin-bottom: 1.5rem;
+        }
+
+        .comp-section:last-child {
+            margin-bottom: 0;
+        }
+
+        .comp-section h3 {
+            font-size: 0.8rem;
+            font-weight: 600;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            margin-bottom: 0.75rem;
+        }
+
+        .comp-info {
+            display: flex;
+            gap: 1.5rem;
+            flex-wrap: wrap;
+            margin-bottom: 1rem;
+        }
+
+        .comp-info-item {
+            display: flex;
+            flex-direction: column;
+            gap: 0.25rem;
+        }
+
+        .comp-info-label {
+            font-size: 0.7rem;
+            color: var(--text-muted);
+            text-transform: uppercase;
+        }
+
+        .comp-info-value {
+            font-size: 0.9rem;
+            color: var(--text-primary);
+            font-weight: 500;
+        }
+
+        /* Distribution chart */
+        .dist-chart {
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+        }
+
+        .dist-row {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+        }
+
+        .dist-label {
+            font-size: 0.75rem;
+            color: var(--text-secondary);
+            width: 180px;
+            flex-shrink: 0;
+            text-overflow: ellipsis;
+            overflow: hidden;
+            white-space: nowrap;
+        }
+
+        .dist-bar-container {
+            flex: 1;
+            height: 20px;
+            background: var(--bg-tertiary);
+            border-radius: 4px;
+            overflow: hidden;
+        }
+
+        .dist-bar {
+            height: 100%;
+            background: linear-gradient(90deg, var(--accent), var(--heat-high));
+            border-radius: 4px;
+            transition: width 0.3s ease;
+        }
+
+        .dist-value {
+            font-size: 0.75rem;
+            color: var(--text-primary);
+            width: 60px;
+            text-align: right;
+            flex-shrink: 0;
+        }
+
+        .no-composition {
+            color: var(--text-muted);
+            font-style: italic;
+            text-align: center;
+            padding: 2rem;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Evaluation Leaderboard</h1>
+            <p class="subtitle">Interactive benchmark results viewer</p>
+        </header>
+
+        <div class="controls">
+            <div class="control-group">
+                <label>Search</label>
+                <input type="text" class="search-input" id="searchInput" placeholder="Filter by checkpoint name...">
+            </div>
+
+            <div class="control-group">
+                <label>Stage</label>
+                <select class="filter-select" id="filterStage">
+                    <option value="">All</option>
+                    <option value="baseline">baseline</option>
+<option value="stage_0">stage_0</option>
+<option value="stage_1">stage_1</option>
+                </select>
+            </div>
+
+            <div class="control-group">
+                <label>Training Type</label>
+                <select class="filter-select" id="filterTrainingType">
+                    <option value="">All</option>
+                    <option value="baseline">BASELINE</option>
+<option value="cpt">CPT</option>
+<option value="dpo">DPO</option>
+<option value="sft">SFT</option>
+                </select>
+            </div>
+
+            <div class="control-group">
+                <label>Base Model</label>
+                <select class="filter-select" id="filterBaseModel">
+                    <option value="">All</option>
+                    <option value="mistral">Mistral</option>
+<option value="qwen">Qwen</option>
+                </select>
+            </div>
+
+            <div class="control-group">
+                <label>Options</label>
+                <div class="checkbox-group">
+                    <label class="checkbox-label">
+                        <input type="checkbox" id="showBaselinesOnly">
+                        Baselines only
+                    </label>
+                    <label class="checkbox-label">
+                        <input type="checkbox" id="showDeltaBaseline">
+                        Δ from base model
+                    </label>
+                    <label class="checkbox-label">
+                        <input type="checkbox" id="showDeltaSelected">
+                        Δ from selected
+                    </label>
+                    <label class="checkbox-label">
+                        <input type="checkbox" id="showHeatmap" checked>
+                        Heat map
+                    </label>
+                    <label class="checkbox-label">
+                        <input type="checkbox" id="normalizeAvgs" checked>
+                        Normalize avgs by max
+                    </label>
+                </div>
+            </div>
+
+            <div class="control-group">
+                <label>Compare to</label>
+                <div class="search-select-container" id="compareContainer">
+                    <input type="text" class="search-input" id="compareSearch" placeholder="Search checkpoint...">
+                    <div class="search-dropdown" id="compareDropdown"></div>
+                    <input type="hidden" id="compareSelected" value="">
+                </div>
+            </div>
+
+            <div class="control-group column-toggle">
+                <label>Columns</label>
+                <button class="btn" id="columnToggleBtn">Show/Hide</button>
+                <div class="column-dropdown" id="columnDropdown">
+                    <label><input type="checkbox" data-col="Visual_LC_Avg" checked> Visual_LC_Avg</label>
+<label><input type="checkbox" data-col="LC_Avg" checked> LC_Avg</label>
+<label><input type="checkbox" data-col="Overall_Avg" checked> Overall_Avg</label>
+<label><input type="checkbox" data-col="mmlongbench_doc" checked> mmlongbench_doc</label>
+<label><input type="checkbox" data-col="mmlongbench_doc_corrected" checked> mmlongbench_doc_corrected</label>
+<label><input type="checkbox" data-col="mmlb_131k" checked> mmlb_131k</label>
+<label><input type="checkbox" data-col="mmlb_32k" checked> mmlb_32k</label>
+<label><input type="checkbox" data-col="spiqa_eval" checked> spiqa_eval</label>
+<label><input type="checkbox" data-col="slidevqa" checked> slidevqa</label>
+<label><input type="checkbox" data-col="helmet" checked> helmet</label>
+<label><input type="checkbox" data-col="longbench_v2" checked> longbench_v2</label>
+<label><input type="checkbox" data-col="dude" checked> dude</label>
+<label><input type="checkbox" data-col="tablevqa" checked> tablevqa</label>
+<label><input type="checkbox" data-col="mmmu_pro" checked> mmmu_pro</label>
+<label><input type="checkbox" data-col="tinymmlu" checked> tinymmlu</label>
+<label><input type="checkbox" data-col="mm_mt_bench" checked> mm_mt_bench</label>
+<label><input type="checkbox" data-col="gpqa" checked> gpqa</label>
+<label><input type="checkbox" data-col="tinygsm8k" checked> tinygsm8k</label>
+                </div>
+            </div>
+
+            <div class="btn-group">
+                <button class="btn btn-primary" id="exportLatex">Copy LaTeX</button>
+                <button class="btn" id="resetFilters">Reset</button>
+            </div>
+        </div>
+
+        <div class="stats-bar">
+            <div class="stat">Showing: <span class="stat-value" id="visibleCount">58</span></div>
+            <div class="stat">Total: <span class="stat-value">58</span></div>
+            <div class="stat">Benchmarks: <span class="stat-value">18</span></div>
+        </div>
+
+        <div class="table-container">
+            <table id="leaderboard">
+                <thead>
+                    <tr>
+                        <th data-col="Checkpoint">Checkpoint</th>
+                        <th data-col="Visual_LC_Avg">Visual_LC_Avg</th>
+<th data-col="LC_Avg">LC_Avg</th>
+<th data-col="Overall_Avg">Overall_Avg</th>
+<th data-col="mmlongbench_doc">mmlongbench_doc</th>
+<th data-col="mmlongbench_doc_corrected">mmlongbench_doc_corrected</th>
+<th data-col="mmlb_131k">mmlb_131k</th>
+<th data-col="mmlb_32k">mmlb_32k</th>
+<th data-col="spiqa_eval">spiqa_eval</th>
+<th data-col="slidevqa">slidevqa</th>
+<th data-col="helmet">helmet</th>
+<th data-col="longbench_v2">longbench_v2</th>
+<th data-col="dude">dude</th>
+<th data-col="tablevqa">tablevqa</th>
+<th data-col="mmmu_pro">mmmu_pro</th>
+<th data-col="tinymmlu">tinymmlu</th>
+<th data-col="mm_mt_bench">mm_mt_bench</th>
+<th data-col="gpqa">gpqa</th>
+<th data-col="tinygsm8k">tinygsm8k</th>
+                    </tr>
+                </thead>
+                <tbody>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <div class="toast" id="toast"></div>
+
+    <!-- Data Composition Modal -->
+    <div class="modal-overlay" id="compositionModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 id="modalTitle">Data Composition</h2>
+                <button class="modal-close" id="modalClose">&times;</button>
+            </div>
+            <div class="modal-body" id="modalBody">
+                <!-- Content populated by JavaScript -->
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Data
+        const checkpoints = [
+  {
+    "name": "Qwen3-VL 32B",
+    "rawName": "qwen3vl_32b",
+    "path": "/gpfs/projects/ehpc486/lc_eval/evaluation_results/qwen3vl/lc_eval/qwen3vl/qwen3vl_32b",
+    "isBaseline": true,
+    "baselineType": "qwen",
+    "metadata": {
+      "stage": "baseline",
+      "trainingType": "baseline",
+      "baseModel": "qwen"
+    },
+    "scores": {
+      "mmlongbench_doc": 51.843178891992295,
+      "mmlongbench_doc_corrected": 53.79733690182197,
+      "mmlb_131k": 70.38452599109951,
+      "mmlb_32k": 78.89103625396895,
+      "spiqa_eval": 79.80000000000001,
+      "slidevqa": 77.21315846665061,
+      "helmet": 62.954753333333336,
+      "longbench_v2": 42.0,
+      "dude": 61.77286878318935,
+      "tablevqa": 77.58333325,
+      "mmmu_pro": 50.0,
+      "tinymmlu": 79.51917030958612,
+      "mm_mt_bench": 83.63636363636363,
+      "gpqa": 32.323232323232325,
+      "tinygsm8k": 87.97125670377038
+    },
+    "Visual_LC_Avg": 65.65035088145378,
+    "LC_Avg": 62.35710732775701,
+    "Overall_Avg": 65.9793476563339,
+    "composition": null
+  },
+  {
+    "name": "Qwen3-VL 235B",
+    "rawName": "qwen3vl_235b",
+    "path": "/gpfs/projects/ehpc486/lc_eval/evaluation_results/qwen3vl/lc_eval/qwen3vl/qwen3vl_235b",
+    "isBaseline": true,
+    "baselineType": "strong",
+    "metadata": {
+      "stage": "baseline",
+      "trainingType": "baseline",
+      "baseModel": "qwen"
+    },
+    "scores": {
+      "mmlongbench_doc": 54.811122249812485,
+      "mmlongbench_doc_corrected": 56.22751798734535,
+      "mmlb_131k": 78.63637234482043,
+      "mmlb_32k": 82.38708158632261,
+      "spiqa_eval": 77.8,
+      "slidevqa": 84.5081635079478,
+      "helmet": 67.5616361904762,
+      "longbench_v2": 50.0,
+      "dude": 59.14377211325835,
+      "tablevqa": 78.77083350000001,
+      "mmmu_pro": 55.00000000000001,
+      "tinymmlu": 79.04959685114663,
+      "mm_mt_bench": 83.30578512396694,
+      "gpqa": 41.91919191919192,
+      "tinygsm8k": 84.27168331843491
+    },
+    "Visual_LC_Avg": 69.2856716315845,
+    "LC_Avg": 66.6594582474979,
+    "Overall_Avg": 68.89285044618158,
+    "composition": null
+  },
+  {
+    "name": "Length-Difficulty CPT 10B - Base Qwen3-VL - Qwen3-VL + 0.25 * CPT",
+    "rawName": "baseline_length_difficulty_cur_ep0_ba13915_1.0_0.25",
+    "path": "/gpfs/projects/ehpc486/lc_eval/evaluation_results/qwen3vl/lc_eval/qwen3vl/baseline_length_difficulty_cur/baseline_length_difficulty_cur_ep0_ba13915_1.0_0.25",
+    "isBaseline": false,
+    "baselineType": null,
+    "metadata": {
+      "stage": "stage_0",
+      "trainingType": "cpt",
+      "baseModel": "qwen"
+    },
+    "scores": {
+      "mmlongbench_doc": 53.63875604815234,
+      "mmlongbench_doc_corrected": 55.93492329551722,
+      "mmlb_131k": 71.97763551358219,
+      "mmlb_32k": 78.17302812896457,
+      "spiqa_eval": 77.8,
+      "slidevqa": 69.67365743820748,
+      "helmet": 64.63516584415585,
+      "longbench_v2": 40.0,
+      "dude": 57.52547570144807,
+      "tablevqa": 81.1,
+      "mmmu_pro": 48.199999999999996,
+      "tinymmlu": 77.63897023336551,
+      "mm_mt_bench": 80.57851239669421,
+      "gpqa": 30.808080808080806,
+      "tinygsm8k": 90.08004050543452
+    },
+    "Visual_LC_Avg": 64.48724602097865,
+    "LC_Avg": 61.44483024625347,
+    "Overall_Avg": 65.18428306090685,
+    "composition": {
+      "type": "cpt",
+      "n_tokens_B": 10,
+      "description": "10B baseline CPT",
+      "distribution": {
+        "prolong_lc_text": {
+          "total_pct": 34.43,
+          "total_tokens_B": 3.44
+        },
+        "fill_in_the_middle": {
+          "total_pct": 29.92,
+          "total_tokens_B": 2.99
+        },
+        "key_position_retrieval": {
+          "total_pct": 18.65,
+          "total_tokens_B": 1.86
+        },
+        "unshuffle": {
+          "total_pct": 14.92,
+          "total_tokens_B": 1.49
+        },
+        "counting": {
+          "total_pct": 2.08,
+          "total_tokens_B": 0.21
+        }
+      }
+    }
+  },
+  {
+    "name": "LongPO Short Stage (Distill) - Base Qwen3-VL - Qwen3-VL + 0.25 * LongPO",
+    "rawName": "plain_distill_50k_longpo_v2_pi_instruct_ref_instruct_ep0_ba2808_0.0_0.25",
+    "path": "/gpfs/projects/ehpc486/lc_eval/evaluation_results/qwen3vl/lc_eval/qwen3vl/plain_distill_50k_longpo_v2_pi_instruct_ref_instruct/plain_distill_50k_longpo_v2_pi_instruct_ref_instruct_ep0_ba2808_0.0_0.25",
+    "isBaseline": false,
+    "baselineType": null,
+    "metadata": {
+      "stage": "stage_1",
+      "trainingType": "dpo",
+      "baseModel": "qwen"
+    },
+    "scores": {
+      "mmlongbench_doc": 53.591090640467065,
+      "mmlongbench_doc_corrected": 56.428531291700615,
+      "mmlb_131k": 75.56034029009265,
+      "mmlb_32k": 78.41505710463798,
+      "spiqa_eval": 80.0,
+      "slidevqa": 75.49030357595254,
+      "helmet": 62.88062837606837,
+      "longbench_v2": 42.0,
+      "dude": 55.9904500005572,
+      "tablevqa": 81.66666674999999,
+      "mmmu_pro": 47.199999999999996,
+      "tinymmlu": 79.1192245711473,
+      "mm_mt_bench": 81.98347107438015,
+      "gpqa": 31.313131313131315,
+      "tinygsm8k": 86.61313606341712
+    },
+    "Visual_LC_Avg": 65.91262881723468,
+    "LC_Avg": 62.54455015993455,
+    "Overall_Avg": 65.88346873677015,
+    "composition": {
+      "type": "sft",
+      "dataset_name": "plain_distill_50k_longpo_v2",
+      "version": "v2",
+      "distribution": {
+        "plain_distill_50k_longpo": 100.0
+      },
+      "counts": {
+        "plain_distill_50k_longpo": 45723
+      },
+      "total_examples": 45723
+    }
+  },
+  {
+    "name": "LongPO Long Stage (Distill) - Base Qwen3-VL - Qwen3-VL + 0.25 * LongPO",
+    "rawName": "plain_distill_50k_longpo_v2_pi_instruct_ref_instruct_ep0_ba4152_0.0_0.25",
+    "path": "/gpfs/projects/ehpc486/lc_eval/evaluation_results/qwen3vl/lc_eval/qwen3vl/plain_distill_50k_longpo_v2_pi_instruct_ref_instruct/plain_distill_50k_longpo_v2_pi_instruct_ref_instruct_ep0_ba4152_0.0_0.25",
+    "isBaseline": false,
+    "baselineType": null,
+    "metadata": {
+      "stage": "stage_1",
+      "trainingType": "dpo",
+      "baseModel": "qwen"
+    },
+    "scores": {
+      "mmlongbench_doc": 51.358872334184724,
+      "mmlongbench_doc_corrected": 53.991056672667625,
+      "mmlb_131k": 71.75834207009251,
+      "mmlb_32k": 81.49370979028492,
+      "spiqa_eval": 77.60000000000001,
+      "slidevqa": 74.81405609190259,
+      "helmet": 63.391953333333326,
+      "longbench_v2": 42.0,
+      "dude": 54.13571759869963,
+      "tablevqa": 80.73333325,
+      "mmmu_pro": 46.86666666666667,
+      "tinymmlu": 78.04032599401106,
+      "mm_mt_bench": 81.48760330578513,
+      "gpqa": 32.323232323232325,
+      "tinygsm8k": 86.5035815611008
+    },
+    "Visual_LC_Avg": 64.591959092972,
+    "LC_Avg": 61.61796348639567,
+    "Overall_Avg": 65.09989673279742,
+    "composition": {
+      "type": "sft",
+      "dataset_name": "plain_distill_50k_longpo_v2",
+      "version": "v2",
+      "distribution": {
+        "plain_distill_50k_longpo": 100.0
+      },
+      "counts": {
+        "plain_distill_50k_longpo": 45723
+      },
+      "total_examples": 45723
+    }
+  },
+  {
+    "name": "Distill 50K + SFT - Short Stage - Base Qwen3-VL + 0.5 * CPT - Qwen3-VL + 0.375 * CPT + 0.25 * SFT",
+    "rawName": "plain_distill_50k_extra_sft_v2_ep1_ba2221_0.5_0.25",
+    "path": "/gpfs/projects/ehpc486/lc_eval/evaluation_results/qwen3vl/lc_eval/qwen3vl/plain_distill_50k_extra_sft_v2/plain_distill_50k_extra_sft_v2_ep1_ba2221_0.5_0.25",
+    "isBaseline": false,
+    "baselineType": null,
+    "metadata": {
+      "stage": "stage_1",
+      "trainingType": "sft",
+      "baseModel": "qwen"
+    },
+    "scores": {
+      "mmlongbench_doc": 54.89139309560856,
+      "mmlongbench_doc_corrected": 57.303687659377424,
+      "mmlb_131k": 73.82492864057298,
+      "mmlb_32k": 76.98661565163985,
+      "spiqa_eval": 73.8,
+      "slidevqa": 66.8428101363741,
+      "helmet": 65.68512965367965,
+      "longbench_v2": 44.0,
+      "dude": 54.776414307554155,
+      "tablevqa": 82.1,
+      "mmmu_pro": 48.6,
+      "tinymmlu": 78.82229559563235,
+      "mm_mt_bench": 80.49586776859505,
+      "gpqa": 29.797979797979796,
+      "tinygsm8k": 87.37493197093511
+    },
+    "Visual_LC_Avg": 64.10430824852118,
+    "LC_Avg": 61.78887239310084,
+    "Overall_Avg": 65.02013695186326,
+    "composition": {
+      "type": "sft",
+      "dataset_name": "plain_distill_50k_extra_sft_v2",
+      "version": "v2",
+      "distribution": {
+        "plain_distill": 67.11,
+        "multi_turn_no_think": 0.68,
+        "luth_sft": 13.42,
+        "smoltalk2_no_think": 13.42,
+        "pdfa_parsed_cat_3k": 1.34,
+        "docfinqa": 1.34,
+        "chartqa": 2.68
+      },
+      "counts": {
+        "plain_distill": 50000,
+        "multi_turn_no_think": 509,
+        "luth_sft": 10000,
+        "smoltalk2_no_think": 10000,
+        "pdfa_parsed_cat_3k": 1000,
+        "docfinqa": 1000,
+        "chartqa": 2000
+      },
+      "total_examples": 74509
+    }
+  },
+  {
+    "name": "Distill 50K + SFT - Short + Long Stage - Base Qwen3-VL + 0.5 * CPT - Qwen3-VL + 0.375 * CPT + 0.25 * SFT",
+    "rawName": "plain_distill_50k_extra_sft_v2_ep1_ba7873_0.25_0.25",
+    "path": "/gpfs/projects/ehpc486/lc_eval/evaluation_results/qwen3vl/lc_eval/qwen3vl/plain_distill_50k_extra_sft_v2/plain_distill_50k_extra_sft_v2_ep1_ba7873_0.25_0.25",
+    "isBaseline": false,
+    "baselineType": null,
+    "metadata": {
+      "stage": "stage_1",
+      "trainingType": "sft",
+      "baseModel": "qwen"
+    },
+    "scores": {
+      "mmlongbench_doc": 54.29917182041037,
+      "mmlongbench_doc_corrected": 57.00447155569087,
+      "mmlb_131k": 67.77799273975948,
+      "mmlb_32k": 77.26701871082956,
+      "spiqa_eval": 78.8,
+      "slidevqa": 65.56067351049636,
+      "helmet": 65.39366155844155,
+      "longbench_v2": 41.0,
+      "dude": 55.94317108788059,
+      "tablevqa": 80.5,
+      "mmmu_pro": 48.66666666666667,
+      "tinymmlu": 78.82229559563235,
+      "mm_mt_bench": 78.59504132231405,
+      "gpqa": 31.313131313131315,
+      "tinygsm8k": 85.67680790571923
+    },
+    "Visual_LC_Avg": 62.97541657084454,
+    "LC_Avg": 60.5307701229386,
+    "Overall_Avg": 64.44134025246483,
+    "composition": {
+      "type": "sft",
+      "dataset_name": "plain_distill_50k_extra_sft_v2",
+      "version": "v2",
+      "distribution": {
+        "plain_distill": 67.11,
+        "multi_turn_no_think": 0.68,
+        "luth_sft": 13.42,
+        "smoltalk2_no_think": 13.42,
+        "pdfa_parsed_cat_3k": 1.34,
+        "docfinqa": 1.34,
+        "chartqa": 2.68
+      },
+      "counts": {
+        "plain_distill": 50000,
+        "multi_turn_no_think": 509,
+        "luth_sft": 10000,
+        "smoltalk2_no_think": 10000,
+        "pdfa_parsed_cat_3k": 1000,
+        "docfinqa": 1000,
+        "chartqa": 2000
+      },
+      "total_examples": 74509
+    }
+  },
+  {
+    "name": "LongPO Long Stage (Distill) Eval#2 - Base Qwen3-VL - Qwen3-VL + 0.25 * LongPO",
+    "rawName": "run_2_plain_distill_50k_longpo_v2_pi_instruct_ref_instruct_ep0_ba4152_0.0_0.25",
+    "path": "/gpfs/projects/ehpc486/lc_eval/evaluation_results/qwen3vl/lc_eval/qwen3vl/run_2_plain_distill_50k_longpo_v2_pi_instruct_ref_instruct/run_2_plain_distill_50k_longpo_v2_pi_instruct_ref_instruct_ep0_ba4152_0.0_0.25",
+    "isBaseline": false,
+    "baselineType": null,
+    "metadata": {
+      "stage": "stage_1",
+      "trainingType": "dpo",
+      "baseModel": "qwen"
+    },
+    "scores": {
+      "mmlongbench_doc": 51.20594021177873,
+      "mmlongbench_doc_corrected": 53.1818793453667,
+      "mmlb_131k": 75.76256436858976,
+      "mmlb_32k": 76.92851917106765,
+      "spiqa_eval": 76.6,
+      "slidevqa": 73.24158406871626,
+      "helmet": 63.21100777777777,
+      "longbench_v2": 42.0,
+      "dude": 55.21505250818066,
+      "tablevqa": 80.5,
+      "mmmu_pro": 47.199999999999996,
+      "tinymmlu": 78.04032599401106,
+      "mm_mt_bench": 81.15702479338843,
+      "gpqa": 31.818181818181817,
+      "tinygsm8k": 85.89507784224857
+    },
+    "Visual_LC_Avg": 64.25592327894996,
+    "LC_Avg": 61.343318431434696,
+    "Overall_Avg": 64.79714385995382,
+    "composition": {
+      "type": "sft",
+      "dataset_name": "plain_distill_50k_longpo_v2",
+      "version": "v2",
+      "distribution": {
+        "plain_distill_50k_longpo": 100.0
+      },
+      "counts": {
+        "plain_distill_50k_longpo": 45723
+      },
+      "total_examples": 45723
+    }
+  },
+  {
+    "name": "Recursive 50K + SFT - Short + Long Stage - Base Qwen3-VL - Qwen3-VL + 0.375 * CPT + 0.25 * SFT",
+    "rawName": "synthetic_cot_no_think_extra_sft_v2_ep0_ba7548_0.25_0.25",
+    "path": "/gpfs/projects/ehpc486/lc_eval/evaluation_results/qwen3vl/lc_eval/qwen3vl/synthetic_cot_no_think_extra_sft_v2/synthetic_cot_no_think_extra_sft_v2_ep0_ba7548_0.25_0.25",
+    "isBaseline": false,
+    "baselineType": null,
+    "metadata": {
+      "stage": "stage_1",
+      "trainingType": "sft",
+      "baseModel": "qwen"
+    },
+    "scores": {
+      "mmlongbench_doc": 52.15569910842325,
+      "mmlongbench_doc_corrected": 54.477929023490034,
+      "mmlb_131k": 71.9969636018802,
+      "mmlb_32k": 77.73519797209448,
+      "spiqa_eval": 82.2,
+      "slidevqa": 74.17174816269626,
+      "helmet": 65.91656398268398,
+      "longbench_v2": 45.0,
+      "dude": 55.27802819396991,
+      "tablevqa": 81.73333325,
+      "mmmu_pro": 47.46666666666667,
+      "tinymmlu": 78.20022661312194,
+      "mm_mt_bench": 80.3305785123967,
+      "gpqa": 30.808080808080806,
+      "tinygsm8k": 90.842657695518
+    },
+    "Visual_LC_Avg": 64.30259434375903,
+    "LC_Avg": 62.09151625565477,
+    "Overall_Avg": 65.88757823940149,
+    "composition": {
+      "type": "sft",
+      "dataset_name": "synthetic_cot_no_think_extra_sft_v2",
+      "version": "v2",
+      "distribution": {
+        "synthetic_cot_no_think": 66.47,
+        "multi_turn_no_think": 0.7,
+        "luth_sft": 13.68,
+        "smoltalk2_no_think": 13.68,
+        "pdfa_parsed_cat_3k": 1.37,
+        "docfinqa": 1.37,
+        "chartqa": 2.74
+      },
+      "counts": {
+        "synthetic_cot_no_think": 48591,
+        "multi_turn_no_think": 509,
+        "luth_sft": 10000,
+        "smoltalk2_no_think": 10000,
+        "pdfa_parsed_cat_3k": 1000,
+        "docfinqa": 1000,
+        "chartqa": 2000
+      },
+      "total_examples": 73100
+    }
+  },
+  {
+    "name": "LongPO Long Stage (Distill) Eval#3 - Base Qwen3-VL - Qwen3-VL + 0.25 * LongPO",
+    "rawName": "run_3_plain_distill_50k_longpo_v2_pi_instruct_ref_instruct_ep0_ba4152_0.0_0.25",
+    "path": "/gpfs/projects/ehpc486/lc_eval/evaluation_results/qwen3vl/lc_eval/qwen3vl/run_3_plain_distill_50k_longpo_v2_pi_instruct_ref_instruct/run_3_plain_distill_50k_longpo_v2_pi_instruct_ref_instruct_ep0_ba4152_0.0_0.25",
+    "isBaseline": false,
+    "baselineType": null,
+    "metadata": {
+      "stage": "stage_1",
+      "trainingType": "dpo",
+      "baseModel": "qwen"
+    },
+    "scores": {
+      "mmlongbench_doc": 50.92696422253425,
+      "mmlongbench_doc_corrected": 54.10609811588015,
+      "mmlb_131k": 74.37907837335477,
+      "mmlb_32k": 80.07303116853387,
+      "spiqa_eval": 79.0,
+      "slidevqa": 74.31286082447784,
+      "helmet": 62.15464444444444,
+      "longbench_v2": 43.0,
+      "dude": 55.46821452100937,
+      "tablevqa": 80.66666674999999,
+      "mmmu_pro": 46.93333333333333,
+      "tinymmlu": 78.04032599401106,
+      "mm_mt_bench": 82.14876033057851,
+      "gpqa": 33.33333333333333,
+      "tinygsm8k": 86.26108047971057
+    },
+    "Visual_LC_Avg": 64.87770787096504,
+    "LC_Avg": 61.80261145877934,
+    "Overall_Avg": 65.38695945941343,
+    "composition": {
+      "type": "sft",
+      "dataset_name": "plain_distill_50k_longpo_v2",
+      "version": "v2",
+      "distribution": {
+        "plain_distill_50k_longpo": 100.0
+      },
+      "counts": {
+        "plain_distill_50k_longpo": 45723
+      },
+      "total_examples": 45723
+    }
+  },
+  {
+    "name": "LongPO Long Stage (Recursive) - Base Qwen3-VL - Qwen3-VL + 0.25 * LongPO",
+    "rawName": "synthetic_cot_50k_longpo_v2_pi_instruct_ref_instruct_ep0_ba4142_0.0_0.25",
+    "path": "/gpfs/projects/ehpc486/lc_eval/evaluation_results/qwen3vl/lc_eval/qwen3vl/synthetic_cot_50k_longpo_v2_pi_instruct_ref_instruct/synthetic_cot_50k_longpo_v2_pi_instruct_ref_instruct_ep0_ba4142_0.0_0.25",
+    "isBaseline": false,
+    "baselineType": null,
+    "metadata": {
+      "stage": "stage_1",
+      "trainingType": "dpo",
+      "baseModel": "qwen"
+    },
+    "scores": {
+      "mmlongbench_doc": 50.650948681847865,
+      "mmlongbench_doc_corrected": 54.29695680470944,
+      "mmlb_131k": 73.20627104539382,
+      "mmlb_32k": 79.82323395826114,
+      "spiqa_eval": 79.80000000000001,
+      "slidevqa": 74.67924120245644,
+      "helmet": 62.41766666666666,
+      "longbench_v2": 41.0,
+      "dude": 54.13283337426862,
+      "tablevqa": 79.9,
+      "mmmu_pro": 46.666666666666664,
+      "tinymmlu": 78.04032599401106,
+      "mm_mt_bench": 82.23140495867769,
+      "gpqa": 33.33333333333333,
+      "tinygsm8k": 86.26108047971057
+    },
+    "Visual_LC_Avg": 64.46491417782289,
+    "LC_Avg": 61.2758939667005,
+    "Overall_Avg": 65.09599754440022,
+    "composition": {
+      "type": "sft",
+      "dataset_name": "synthetic_cot_50k_longpo_v2",
+      "version": "v2",
+      "distribution": {
+        "plain_distill_50k_longpo": 100.0
+      },
+      "counts": {
+        "plain_distill_50k_longpo": 45723
+      },
+      "total_examples": 45723
+    }
+  },
+  {
+    "name": "LongPO Short Stage (Recursive) - Base Qwen3-VL - Qwen3-VL + 0.25 * LongPO",
+    "rawName": "synthetic_cot_50k_longpo_v2_pi_instruct_ref_instruct_ep0_ba2808_0.0_0.25",
+    "path": "/gpfs/projects/ehpc486/lc_eval/evaluation_results/qwen3vl/lc_eval/qwen3vl/synthetic_cot_50k_longpo_v2_pi_instruct_ref_instruct/synthetic_cot_50k_longpo_v2_pi_instruct_ref_instruct_ep0_ba2808_0.0_0.25",
+    "isBaseline": false,
+    "baselineType": null,
+    "metadata": {
+      "stage": "stage_1",
+      "trainingType": "dpo",
+      "baseModel": "qwen"
+    },
+    "scores": {
+      "mmlongbench_doc": 53.85173121386296,
+      "mmlongbench_doc_corrected": 55.147458617216174,
+      "mmlb_131k": 74.1864447125827,
+      "mmlb_32k": 77.91347107784148,
+      "spiqa_eval": 79.0,
+      "slidevqa": 75.24348475859449,
+      "helmet": 62.8978746031746,
+      "longbench_v2": 41.0,
+      "dude": 56.33048420376191,
+      "tablevqa": 81.26666675,
+      "mmmu_pro": 47.8,
+      "tinymmlu": 79.1192245711473,
+      "mm_mt_bench": 82.64462809917354,
+      "gpqa": 32.323232323232325,
+      "tinygsm8k": 86.61313606341712
+    },
+    "Visual_LC_Avg": 65.44551243064329,
+    "LC_Avg": 62.07136864837929,
+    "Overall_Avg": 65.68918913293365,
+    "composition": {
+      "type": "sft",
+      "dataset_name": "synthetic_cot_50k_longpo_v2",
+      "version": "v2",
+      "distribution": {
+        "plain_distill_50k_longpo": 100.0
+      },
+      "counts": {
+        "plain_distill_50k_longpo": 45723
+      },
+      "total_examples": 45723
+    }
+  },
+  {
+    "name": "Drop Sum Count LD CPT 7B - Base Mistral - Mistral + 0.5 * CPT",
+    "rawName": "drop_sum_count_ep0_ba8064_1.0_0.5",
+    "path": "/gpfs/projects/ehpc486/lc_eval/evaluation_results/lc_eval/stage_0/drop_sum_count/drop_sum_count_ep0_ba8064_1.0_0.5",
+    "isBaseline": false,
+    "baselineType": null,
+    "metadata": {
+      "stage": "stage_0",
+      "trainingType": "cpt",
+      "baseModel": "mistral"
+    },
+    "scores": {
+      "mmlongbench_doc": 38.963665189807124,
+      "mmlongbench_doc_corrected": 41.0406561625309,
+      "mmlb_131k": 71.77338632876346,
+      "mmlb_32k": 76.12828386783086,
+      "spiqa_eval": 71.39999999999999,
+      "slidevqa": 69.13443204230452,
+      "helmet": 47.436843896103895,
+      "longbench_v2": 36.0,
+      "dude": 54.418660606523474,
+      "tablevqa": 75.03333325,
+      "mmmu_pro": 40.46666666666667,
+      "tinymmlu": 76.10888414505216,
+      "mm_mt_bench": 74.21487603305785,
+      "gpqa": 16.161616161616163,
+      "tinygsm8k": 76.38266359879195
+    },
+    "Visual_LC_Avg": 58.57651403296006,
+    "LC_Avg": 54.36199101173303,
+    "Overall_Avg": 57.6442645299366,
+    "composition": {
+      "type": "cpt",
+      "n_tokens_B": 7,
+      "description": "7B ablation CPT (drop sum_count)",
+      "distribution": {
+        "prolong_lc_text": {
+          "total_pct": 35.16135620915033,
+          "total_tokens_B": 2.41
+        },
+        "fill_in_the_middle": {
+          "total_pct": 30.555555555555557,
+          "total_tokens_B": 2.09
+        },
+        "key_position_retrieval": {
+          "total_pct": 19.046160130718953,
+          "total_tokens_B": 1.31
+        },
+        "unshuffle": {
+          "total_pct": 15.236928104575162,
+          "total_tokens_B": 1.04
+        }
+      }
+    }
+  },
+  {
+    "name": "Length-Difficulty CPT 10B Upsample Long - Base Mistral - Mistral + 0.5 * LD CPT",
+    "rawName": "baseline_length_difficulty_cur_upsample_long_ep0_ba15639_1.0_0.5",
+    "path": "/gpfs/projects/ehpc486/lc_eval/evaluation_results/lc_eval/stage_0/baseline_length_difficulty_cur_upsample_long/baseline_length_difficulty_cur_upsample_long_ep0_ba15639_1.0_0.5",
+    "isBaseline": false,
+    "baselineType": null,
+    "metadata": {
+      "stage": "stage_0",
+      "trainingType": "cpt",
+      "baseModel": "mistral"
+    },
+    "scores": {
+      "mmlongbench_doc": 40.87102450405449,
+      "mmlongbench_doc_corrected": 41.653347952519745,
+      "mmlb_131k": 70.28762344113154,
+      "mmlb_32k": 73.40964082470039,
+      "spiqa_eval": 72.6,
+      "slidevqa": 66.27859357317202,
+      "helmet": 45.75041167388167,
+      "longbench_v2": 45.0,
+      "dude": 54.61879167095217,
+      "tablevqa": 63.0,
+      "mmmu_pro": 41.0,
+      "tinymmlu": 74.34727153587836,
+      "mm_mt_bench": 73.05785123966942,
+      "gpqa": 12.626262626262626,
+      "tinygsm8k": 73.38757757089094
+    },
+    "Visual_LC_Avg": 57.85317032775506,
+    "LC_Avg": 54.7336792050515,
+    "Overall_Avg": 56.525893107540895,
+    "composition": {
+      "type": "cpt",
+      "n_tokens_B": 10,
+      "description": "10B baseline CPT",
+      "distribution": {
+        "prolong_lc_text": {
+          "total_pct": 34.43,
+          "total_tokens_B": 3.44
+        },
+        "fill_in_the_middle": {
+          "total_pct": 29.92,
+          "total_tokens_B": 2.99
+        },
+        "key_position_retrieval": {
+          "total_pct": 18.65,
+          "total_tokens_B": 1.86
+        },
+        "unshuffle": {
+          "total_pct": 14.92,
+          "total_tokens_B": 1.49
+        },
+        "counting": {
+          "total_pct": 2.08,
+          "total_tokens_B": 0.21
+        }
+      }
+    }
+  },
+  {
+    "name": "Length-Difficulty CPT 100B - Base Mistral - Mistral + 0.5 * LD CPT",
+    "rawName": "length_difficulty_cur_ep0_ba157270_1.0_0.5",
+    "path": "/gpfs/projects/ehpc486/lc_eval/evaluation_results/lc_eval/stage_0/length_difficulty_cur/length_difficulty_cur_ep0_ba157270_1.0_0.5",
+    "isBaseline": false,
+    "baselineType": null,
+    "metadata": {
+      "stage": "stage_0",
+      "trainingType": "cpt",
+      "baseModel": "mistral"
+    },
+    "scores": {
+      "mmlongbench_doc": 41.46175048065345,
+      "mmlongbench_doc_corrected": 42.65442853234232,
+      "mmlb_131k": 69.2565614407924,
+      "mmlb_32k": 74.45542094776837,
+      "spiqa_eval": 74.4,
+      "slidevqa": 68.04928663359037,
+      "helmet": 51.663865934065925,
+      "longbench_v2": 47.0,
+      "dude": 60.119702799700015,
+      "tablevqa": 73.39583325,
+      "mmmu_pro": 36.0,
+      "tinymmlu": 73.68915841098985,
+      "mm_mt_bench": 74.13223140495869,
+      "gpqa": 15.656565656565657,
+      "tinygsm8k": 84.28730073180836
+    },
+    "Visual_LC_Avg": 59.33285847247449,
+    "LC_Avg": 56.83262709611411,
+    "Overall_Avg": 59.08147374821569,
+    "composition": {
+      "type": "cpt",
+      "n_tokens_B": 100,
+      "description": "~100B length+difficulty curriculum",
+      "distribution": {
+        "prolong_lc_text": {
+          "total_pct": 34.43,
+          "total_tokens_B": 34.43
+        },
+        "fill_in_the_middle": {
+          "total_pct": 29.92,
+          "total_tokens_B": 29.92
+        },
+        "key_position_retrieval": {
+          "total_pct": 18.65,
+          "total_tokens_B": 18.65
+        },
+        "unshuffle": {
+          "total_pct": 14.92,
+          "total_tokens_B": 14.92
+        },
+        "counting": {
+          "total_pct": 2.08,
+          "total_tokens_B": 2.08
+        }
+      }
+    }
+  },
+  {
+    "name": "Length-Difficulty CPT 10B - Base Mistral - Mistral + 0.5 * LD CPT",
+    "rawName": "baseline_length_difficulty_cur_ep0_ba14185_1.0_0.5",
+    "path": "/gpfs/projects/ehpc486/lc_eval/evaluation_results/lc_eval/stage_0/baseline_length_difficulty_cur/baseline_length_difficulty_cur_ep0_ba14185_1.0_0.5",
+    "isBaseline": false,
+    "baselineType": null,
+    "metadata": {
+      "stage": "stage_0",
+      "trainingType": "cpt",
+      "baseModel": "mistral"
+    },
+    "scores": {
+      "mmlongbench_doc": 43.3435889423349,
+      "mmlongbench_doc_corrected": 43.06745141840339,
+      "mmlb_131k": 68.05917395232339,
+      "mmlb_32k": 75.0082929229633,
+      "spiqa_eval": 71.0,
+      "slidevqa": 66.94200483492926,
+      "helmet": 45.9627952014652,
+      "longbench_v2": 41.0,
+      "dude": 55.104161067036095,
+      "tablevqa": 76.6875,
+      "mmmu_pro": 43.0,
+      "tinymmlu": 74.05432524012582,
+      "mm_mt_bench": 73.14049586776859,
+      "gpqa": 13.131313131313133,
+      "tinygsm8k": 80.3167049265526
+    },
+    "Visual_LC_Avg": 58.587445522998394,
+    "LC_Avg": 54.81093354243194,
+    "Overall_Avg": 57.987853833681044,
+    "composition": {
+      "type": "cpt",
+      "n_tokens_B": 10,
+      "description": "10B baseline CPT",
+      "distribution": {
+        "prolong_lc_text": {
+          "total_pct": 34.43,
+          "total_tokens_B": 3.44
+        },
+        "fill_in_the_middle": {
+          "total_pct": 29.92,
+          "total_tokens_B": 2.99
+        },
+        "key_position_retrieval": {
+          "total_pct": 18.65,
+          "total_tokens_B": 1.86
+        },
+        "unshuffle": {
+          "total_pct": 14.92,
+          "total_tokens_B": 1.49
+        },
+        "counting": {
+          "total_pct": 2.08,
+          "total_tokens_B": 0.21
+        }
+      }
+    }
+  },
+  {
+    "name": "Drop Prolong LD CPT 7B - Base Mistral + 0.5 * CPT",
+    "rawName": "drop_prolong_ep1_ba8309_1.0_0.5",
+    "path": "/gpfs/projects/ehpc486/lc_eval/evaluation_results/lc_eval/stage_0/drop_prolong/drop_prolong_ep1_ba8309_1.0_0.5",
+    "isBaseline": false,
+    "baselineType": null,
+    "metadata": {
+      "stage": "stage_0",
+      "trainingType": "cpt",
+      "baseModel": "mistral"
+    },
+    "scores": {
+      "mmlongbench_doc": 39.2120526471977,
+      "mmlongbench_doc_corrected": 41.311046620055826,
+      "mmlb_131k": 69.93220187522658,
+      "mmlb_32k": 76.962745475258,
+      "spiqa_eval": 70.39999999999999,
+      "slidevqa": 67.35617580803441,
+      "helmet": 45.73830770562771,
+      "longbench_v2": 36.0,
+      "dude": 53.6464144628612,
+      "tablevqa": 75.03333325,
+      "mmmu_pro": 39.33333333333333,
+      "tinymmlu": 76.36449469922931,
+      "mm_mt_bench": 71.48760330578511,
+      "gpqa": 13.636363636363635,
+      "tinygsm8k": 75.68999143546331
+    },
+    "Visual_LC_Avg": 58.07010614810562,
+    "LC_Avg": 53.76986807428268,
+    "Overall_Avg": 56.80693761696241,
+    "composition": {
+      "type": "cpt",
+      "n_tokens_B": 7,
+      "description": "7B ablation CPT (drop prolong)",
+      "distribution": {
+        "fill_in_the_middle": {
+          "total_pct": 45.63062376086626,
+          "total_tokens_B": 2.09
+        },
+        "key_position_retrieval": {
+          "total_pct": 28.44288546591429,
+          "total_tokens_B": 1.31
+        },
+        "unshuffle": {
+          "total_pct": 22.754308372731437,
+          "total_tokens_B": 1.04
+        },
+        "counting": {
+          "total_pct": 3.172182400488029,
+          "total_tokens_B": 0.15
+        }
+      }
+    }
+  },
+  {
+    "name": "Length CPT 10B No Text - Base Mistral - Mistral + 0.5 * CPT",
+    "rawName": "length_cur_no_text_ep0_ba10468_1.0_0.5",
+    "path": "/gpfs/projects/ehpc486/lc_eval/evaluation_results/lc_eval/stage_0/length_cur_no_text/length_cur_no_text_ep0_ba10468_1.0_0.5",
+    "isBaseline": false,
+    "baselineType": null,
+    "metadata": {
+      "stage": "stage_0",
+      "trainingType": "cpt",
+      "baseModel": "mistral"
+    },
+    "scores": {
+      "mmlongbench_doc": 37.94821808320082,
+      "mmlongbench_doc_corrected": 38.76564211289156,
+      "mmlb_131k": 69.66009762677237,
+      "mmlb_32k": 73.66147796964411,
+      "spiqa_eval": 70.39999999999999,
+      "slidevqa": 68.68106224679444,
+      "helmet": 48.51882914085915,
+      "longbench_v2": 40.0,
+      "dude": 51.926397405052214,
+      "tablevqa": 77.06666675,
+      "mmmu_pro": 39.53333333333333,
+      "tinymmlu": 75.33281110177198,
+      "mm_mt_bench": 70.9090909090909,
+      "gpqa": 17.67676767676768,
+      "tinygsm8k": 79.75919497516067
+    },
+    "Visual_LC_Avg": 56.77381590739259,
+    "LC_Avg": 53.64521557315183,
+    "Overall_Avg": 57.322639288755944,
+    "composition": {
+      "type": "cpt",
+      "n_tokens_B": 10,
+      "description": "10B length curriculum (prolong removed)",
+      "distribution": {
+        "fill_in_the_middle": {
+          "total_pct": 45.63062376086626,
+          "total_tokens_B": 2.99
+        },
+        "key_position_retrieval": {
+          "total_pct": 28.44288546591429,
+          "total_tokens_B": 1.86
+        },
+        "unshuffle": {
+          "total_pct": 22.754308372731437,
+          "total_tokens_B": 1.49
+        },
+        "counting": {
+          "total_pct": 3.172182400488029,
+          "total_tokens_B": 0.21
+        }
+      }
+    }
+  },
+  {
+    "name": "Length CPT 100B - Base Mistral - Mistral + 0.5 * L CPT",
+    "rawName": "length_cur_ep0_ba147212_1.0_0.5",
+    "path": "/gpfs/projects/ehpc486/lc_eval/evaluation_results/lc_eval/stage_0/length_cur/length_cur_ep0_ba147212_1.0_0.5",
+    "isBaseline": false,
+    "baselineType": null,
+    "metadata": {
+      "stage": "stage_0",
+      "trainingType": "cpt",
+      "baseModel": "mistral"
+    },
+    "scores": {
+      "mmlongbench_doc": 43.07896853206833,
+      "mmlongbench_doc_corrected": 44.04187149843193,
+      "mmlb_131k": 70.54664839754838,
+      "mmlb_32k": 72.71192802266631,
+      "spiqa_eval": 73.4,
+      "slidevqa": 70.89108623287451,
+      "helmet": 50.154023419913415,
+      "longbench_v2": 42.0,
+      "dude": 56.064623006395166,
+      "tablevqa": 52.1875,
+      "mmmu_pro": 41.0,
+      "tinymmlu": 74.97144877623913,
+      "mm_mt_bench": 74.46280991735537,
+      "gpqa": 14.14141414141414,
+      "tinygsm8k": 76.12885282339667
+    },
+    "Visual_LC_Avg": 59.555854281664104,
+    "LC_Avg": 56.186143638737256,
+    "Overall_Avg": 57.05207831788689,
+    "composition": {
+      "type": "cpt",
+      "n_tokens_B": 100,
+      "description": "~100B length curriculum",
+      "distribution": {
+        "prolong_lc_text": {
+          "total_pct": 34.43,
+          "total_tokens_B": 34.43
+        },
+        "fill_in_the_middle": {
+          "total_pct": 29.92,
+          "total_tokens_B": 29.92
+        },
+        "key_position_retrieval": {
+          "total_pct": 18.65,
+          "total_tokens_B": 18.65
+        },
+        "unshuffle": {
+          "total_pct": 14.92,
+          "total_tokens_B": 14.92
+        },
+        "counting": {
+          "total_pct": 2.08,
+          "total_tokens_B": 2.08
+        }
+      }
+    }
+  },
+  {
+    "name": "Drop Unshuffle LD CPT 7B - Base Mistral + 0.5 * CPT",
+    "rawName": "drop_unshuffle_ep0_ba6843_1.0_0.5",
+    "path": "/gpfs/projects/ehpc486/lc_eval/evaluation_results/lc_eval/stage_0/drop_unshuffle/drop_unshuffle_ep0_ba6843_1.0_0.5",
+    "isBaseline": false,
+    "baselineType": null,
+    "metadata": {
+      "stage": "stage_0",
+      "trainingType": "cpt",
+      "baseModel": "mistral"
+    },
+    "scores": {
+      "mmlongbench_doc": 39.50907204794873,
+      "mmlongbench_doc_corrected": 40.74651198801981,
+      "mmlb_131k": 67.1812397903495,
+      "mmlb_32k": 76.27250539902921,
+      "spiqa_eval": 71.6,
+      "slidevqa": 68.07642307280553,
+      "helmet": 42.265693896103905,
+      "longbench_v2": 39.0,
+      "dude": 53.00063003007834,
+      "tablevqa": 76.56666675,
+      "mmmu_pro": 39.6,
+      "tinymmlu": 75.52127367724123,
+      "mm_mt_bench": 75.53719008264463,
+      "gpqa": 18.181818181818183,
+      "tinygsm8k": 75.42253933513996
+    },
+    "Visual_LC_Avg": 57.46439705470519,
+    "LC_Avg": 53.256509528041875,
+    "Overall_Avg": 57.23210428341193,
+    "composition": {
+      "type": "cpt",
+      "n_tokens_B": 7,
+      "description": "7B ablation CPT (drop unshuffle)",
+      "distribution": {
+        "prolong_lc_text": {
+          "total_pct": 40.4677950164551,
+          "total_tokens_B": 2.41
+        },
+        "fill_in_the_middle": {
+          "total_pct": 35.166901739539256,
+          "total_tokens_B": 2.09
+        },
+        "key_position_retrieval": {
+          "total_pct": 21.92054536906441,
+          "total_tokens_B": 1.31
+        },
+        "counting": {
+          "total_pct": 2.444757874941232,
+          "total_tokens_B": 0.15
+        }
+      }
+    }
+  },
+  {
+    "name": "Length-Difficulty CPT 10B Random Task Order - Base Mistral - Mistral + 0.5 * LD CPT",
+    "rawName": "baseline_length_difficulty_cur_random_order_ep0_ba12749_1.0_0.5",
+    "path": "/gpfs/projects/ehpc486/lc_eval/evaluation_results/lc_eval/stage_0/baseline_length_difficulty_cur_random_order/baseline_length_difficulty_cur_random_order_ep0_ba12749_1.0_0.5",
+    "isBaseline": false,
+    "baselineType": null,
+    "metadata": {
+      "stage": "stage_0",
+      "trainingType": "cpt",
+      "baseModel": "mistral"
+    },
+    "scores": {
+      "mmlongbench_doc": 40.69556618761865,
+      "mmlongbench_doc_corrected": 43.241309365470066,
+      "mmlb_131k": 68.4851018314545,
+      "mmlb_32k": 73.43246357006507,
+      "spiqa_eval": 71.0,
+      "slidevqa": 69.42820550746181,
+      "helmet": 45.21951238095238,
+      "longbench_v2": 41.0,
+      "dude": 56.75589130792736,
+      "tablevqa": 69.72916675,
+      "mmmu_pro": 43.0,
+      "tinymmlu": 78.14254232725129,
+      "mm_mt_bench": 73.30578512396694,
+      "gpqa": 16.161616161616163,
+      "tinygsm8k": 79.56697744289289
+    },
+    "Visual_LC_Avg": 58.67308962833291,
+    "LC_Avg": 54.78225626886873,
+    "Overall_Avg": 57.94427586377847,
+    "composition": {
+      "type": "cpt",
+      "n_tokens_B": 10,
+      "description": "10B baseline CPT",
+      "distribution": {
+        "prolong_lc_text": {
+          "total_pct": 34.43,
+          "total_tokens_B": 3.44
+        },
+        "fill_in_the_middle": {
+          "total_pct": 29.92,
+          "total_tokens_B": 2.99
+        },
+        "key_position_retrieval": {
+          "total_pct": 18.65,
+          "total_tokens_B": 1.86
+        },
+        "unshuffle": {
+          "total_pct": 14.92,
+          "total_tokens_B": 1.49
+        },
+        "counting": {
+          "total_pct": 2.08,
+          "total_tokens_B": 0.21
+        }
+      }
+    }
+  },
+  {
+    "name": "No Curriculum CPT 10B - Base Mistral - Mistral + 0.5 * NC CPT",
+    "rawName": "baseline_no_cur_ep0_ba13362_1.0_0.5",
+    "path": "/gpfs/projects/ehpc486/lc_eval/evaluation_results/lc_eval/stage_0/baseline_no_cur/baseline_no_cur_ep0_ba13362_1.0_0.5",
+    "isBaseline": false,
+    "baselineType": null,
+    "metadata": {
+      "stage": "stage_0",
+      "trainingType": "cpt",
+      "baseModel": "mistral"
+    },
+    "scores": {
+      "mmlongbench_doc": 42.382876469883016,
+      "mmlongbench_doc_corrected": 43.86749964232015,
+      "mmlb_131k": 68.63678069909163,
+      "mmlb_32k": 73.98907942248572,
+      "spiqa_eval": 74.6,
+      "slidevqa": 66.08494322042084,
+      "helmet": 46.70873285714286,
+      "longbench_v2": 39.0,
+      "dude": 57.586113487866,
+      "tablevqa": 65.6875,
+      "mmmu_pro": 42.0,
+      "tinymmlu": 76.39361353058723,
+      "mm_mt_bench": 72.39669421487604,
+      "gpqa": 14.646464646464647,
+      "tinygsm8k": 77.66189664116465
+    },
+    "Visual_LC_Avg": 58.75788215701123,
+    "LC_Avg": 54.782003224901274,
+    "Overall_Avg": 57.44281298882018,
+    "composition": {
+      "type": "cpt",
+      "n_tokens_B": 10,
+      "description": "10B baseline CPT",
+      "distribution": {
+        "prolong_lc_text": {
+          "total_pct": 34.43,
+          "total_tokens_B": 3.44
+        },
+        "fill_in_the_middle": {
+          "total_pct": 29.92,
+          "total_tokens_B": 2.99
+        },
+        "key_position_retrieval": {
+          "total_pct": 18.65,
+          "total_tokens_B": 1.86
+        },
+        "unshuffle": {
+          "total_pct": 14.92,
+          "total_tokens_B": 1.49
+        },
+        "counting": {
+          "total_pct": 2.08,
+          "total_tokens_B": 0.21
+        }
+      }
+    }
+  },
+  {
+    "name": "Drop Fill in Middle LD CPT 7B - Base Mistral + 0.5 * CPT",
+    "rawName": "drop_fill_in_middle_ep0_ba10179_1.0_0.5",
+    "path": "/gpfs/projects/ehpc486/lc_eval/evaluation_results/lc_eval/stage_0/drop_fill_in_middle/drop_fill_in_middle_ep0_ba10179_1.0_0.5",
+    "isBaseline": false,
+    "baselineType": null,
+    "metadata": {
+      "stage": "stage_0",
+      "trainingType": "cpt",
+      "baseModel": "mistral"
+    },
+    "scores": {
+      "mmlongbench_doc": 37.9115409239417,
+      "mmlongbench_doc_corrected": 39.87417229096068,
+      "mmlb_131k": 63.989815600507455,
+      "mmlb_32k": 69.72242903024168,
+      "spiqa_eval": 72.39999999999999,
+      "slidevqa": 67.03618383804077,
+      "helmet": 44.14895675324676,
+      "longbench_v2": 42.0,
+      "dude": 60.66535214694703,
+      "tablevqa": 72.5625,
+      "mmmu_pro": 40.0,
+      "tinymmlu": 75.58315801949573,
+      "mm_mt_bench": 72.97520661157024,
+      "gpqa": 17.67676767676768,
+      "tinygsm8k": 75.12615828743444
+    },
+    "Visual_LC_Avg": 56.53324897177322,
+    "LC_Avg": 53.16855632298576,
+    "Overall_Avg": 56.77814941194361,
+    "composition": {
+      "type": "cpt",
+      "n_tokens_B": 7,
+      "description": "7B ablation CPT (drop fill_in_middle)",
+      "distribution": {
+        "prolong_lc_text": {
+          "total_pct": 49.12956621004566,
+          "total_tokens_B": 2.41
+        },
+        "key_position_retrieval": {
+          "total_pct": 26.61244292237443,
+          "total_tokens_B": 1.31
+        },
+        "unshuffle": {
+          "total_pct": 21.289954337899545,
+          "total_tokens_B": 1.04
+        },
+        "counting": {
+          "total_pct": 2.9680365296803655,
+          "total_tokens_B": 0.15
+        }
+      }
+    }
+  },
+  {
+    "name": "Drop KP Retrieval LD CPT 7B - Base Mistral + 0.5 * CPT",
+    "rawName": "drop_kp_retrieval_ep0_ba10142_1.0_0.5",
+    "path": "/gpfs/projects/ehpc486/lc_eval/evaluation_results/lc_eval/stage_0/drop_kp_retrieval/drop_kp_retrieval_ep0_ba10142_1.0_0.5",
+    "isBaseline": false,
+    "baselineType": null,
+    "metadata": {
+      "stage": "stage_0",
+      "trainingType": "cpt",
+      "baseModel": "mistral"
+    },
+    "scores": {
+      "mmlongbench_doc": 40.586590990810464,
+      "mmlongbench_doc_corrected": 42.50313667361496,
+      "mmlb_131k": 62.993254839624505,
+      "mmlb_32k": 70.99632910234925,
+      "spiqa_eval": 73.4,
+      "slidevqa": 69.1624464643034,
+      "helmet": 44.02432675324676,
+      "longbench_v2": 40.0,
+      "dude": 57.83316246770283,
+      "tablevqa": 76.54166675,
+      "mmmu_pro": 44.0,
+      "tinymmlu": 74.49698130705039,
+      "mm_mt_bench": 75.78512396694215,
+      "gpqa": 12.626262626262626,
+      "tinygsm8k": 76.7172821032027
+    },
+    "Visual_LC_Avg": 57.34582008973424,
+    "LC_Avg": 53.51240591145652,
+    "Overall_Avg": 57.44443760300734,
+    "composition": {
+      "type": "cpt",
+      "n_tokens_B": 7,
+      "description": "7B ablation CPT (drop kp_retrieval)",
+      "distribution": {
+        "prolong_lc_text": {
+          "total_pct": 42.32329440688384,
+          "total_tokens_B": 2.41
+        },
+        "fill_in_the_middle": {
+          "total_pct": 36.779348494161034,
+          "total_tokens_B": 2.09
+        },
+        "unshuffle": {
+          "total_pct": 18.340503995082976,
+          "total_tokens_B": 1.04
+        },
+        "counting": {
+          "total_pct": 2.556853103872158,
+          "total_tokens_B": 0.15
+        }
+      }
+    }
+  },
+  {
+    "name": "Length CPT 10B - Base Mistral - Mistral + 0.5 * CPT",
+    "rawName": "baseline_length_cur_ep0_ba14410_1.0_0.5",
+    "path": "/gpfs/projects/ehpc486/lc_eval/evaluation_results/lc_eval/stage_0/baseline_length_cur/baseline_length_cur_ep0_ba14410_1.0_0.5",
+    "isBaseline": false,
+    "baselineType": null,
+    "metadata": {
+      "stage": "stage_0",
+      "trainingType": "cpt",
+      "baseModel": "mistral"
+    },
+    "scores": {
+      "mmlongbench_doc": 40.603641383046245,
+      "mmlongbench_doc_corrected": 41.29373482532674,
+      "mmlb_131k": 64.95040239971298,
+      "mmlb_32k": 70.82164293086541,
+      "spiqa_eval": 73.6,
+      "slidevqa": 70.35145612613914,
+      "helmet": 48.60722341991342,
+      "longbench_v2": 41.0,
+      "dude": 60.736952107662354,
+      "tablevqa": 67.35416675,
+      "mmmu_pro": 39.0,
+      "tinymmlu": 76.24348893580182,
+      "mm_mt_bench": 75.12396694214875,
+      "gpqa": 14.14141414141414,
+      "tinygsm8k": 71.42997995864711
+    },
+    "Visual_LC_Avg": 58.12630496212548,
+    "LC_Avg": 54.79563164908328,
+    "Overall_Avg": 57.01720466137854,
+    "composition": {
+      "type": "cpt",
+      "n_tokens_B": 10,
+      "description": "10B baseline CPT",
+      "distribution": {
+        "prolong_lc_text": {
+          "total_pct": 34.43,
+          "total_tokens_B": 3.44
+        },
+        "fill_in_the_middle": {
+          "total_pct": 29.92,
+          "total_tokens_B": 2.99
+        },
+        "key_position_retrieval": {
+          "total_pct": 18.65,
+          "total_tokens_B": 1.86
+        },
+        "unshuffle": {
+          "total_pct": 14.92,
+          "total_tokens_B": 1.49
+        },
+        "counting": {
+          "total_pct": 2.08,
+          "total_tokens_B": 0.21
+        }
+      }
+    }
+  },
+  {
+    "name": "Length-Difficulty CPT 10B Reverse Task Order - Base Mistral - Mistral + 0.5 * LD CPT",
+    "rawName": "baseline_length_difficulty_cur_reverse_order_ep0_ba12759_1.0_0.5",
+    "path": "/gpfs/projects/ehpc486/lc_eval/evaluation_results/lc_eval/stage_0/baseline_length_difficulty_cur_reverse_order/baseline_length_difficulty_cur_reverse_order_ep0_ba12759_1.0_0.5",
+    "isBaseline": false,
+    "baselineType": null,
+    "metadata": {
+      "stage": "stage_0",
+      "trainingType": "cpt",
+      "baseModel": "mistral"
+    },
+    "scores": {
+      "mmlongbench_doc": 41.482853807896504,
+      "mmlongbench_doc_corrected": 43.239231638449546,
+      "mmlb_131k": 65.480816441465,
+      "mmlb_32k": 71.53181342794495,
+      "spiqa_eval": 71.8,
+      "slidevqa": 67.52083349757909,
+      "helmet": 46.53094341991342,
+      "longbench_v2": 38.0,
+      "dude": 60.86993886753832,
+      "tablevqa": 71.39583325,
+      "mmmu_pro": 44.0,
+      "tinymmlu": 76.60290155790828,
+      "mm_mt_bench": 75.20661157024794,
+      "gpqa": 13.636363636363635,
+      "tinygsm8k": 81.61891052880028
+    },
+    "Visual_LC_Avg": 58.35424794681223,
+    "LC_Avg": 54.332053887598356,
+    "Overall_Avg": 57.927803442940466,
+    "composition": {
+      "type": "cpt",
+      "n_tokens_B": 10,
+      "description": "10B baseline CPT",
+      "distribution": {
+        "prolong_lc_text": {
+          "total_pct": 34.43,
+          "total_tokens_B": 3.44
+        },
+        "fill_in_the_middle": {
+          "total_pct": 29.92,
+          "total_tokens_B": 2.99
+        },
+        "key_position_retrieval": {
+          "total_pct": 18.65,
+          "total_tokens_B": 1.86
+        },
+        "unshuffle": {
+          "total_pct": 14.92,
+          "total_tokens_B": 1.49
+        },
+        "counting": {
+          "total_pct": 2.08,
+          "total_tokens_B": 0.21
+        }
+      }
+    }
+  },
+  {
+    "name": "Length-Difficulty CPT 1B - Base Mistral - Mistral + 0.5 * LD CPT",
+    "rawName": "baseline_length_difficulty_cur_1B_ep0_ba1204_1.0_0.5",
+    "path": "/gpfs/projects/ehpc486/lc_eval/evaluation_results/lc_eval/stage_0/baseline_length_difficulty_cur_1B/baseline_length_difficulty_cur_1B_ep0_ba1204_1.0_0.5",
+    "isBaseline": false,
+    "baselineType": null,
+    "metadata": {
+      "stage": "stage_0",
+      "trainingType": "cpt",
+      "baseModel": "mistral"
+    },
+    "scores": {
+      "mmlongbench_doc": 40.603623832315016,
+      "mmlongbench_doc_corrected": 40.779934675054804,
+      "mmlb_131k": 70.05826624627123,
+      "mmlb_32k": 74.24080620004783,
+      "spiqa_eval": 70.39999999999999,
+      "slidevqa": 70.61379263275482,
+      "helmet": 40.37451571428572,
+      "longbench_v2": 40.0,
+      "dude": 57.40132985863362,
+      "tablevqa": 74.9166665,
+      "mmmu_pro": 41.0,
+      "tinymmlu": 76.9421331516154,
+      "mm_mt_bench": 73.14049586776859,
+      "gpqa": 14.646464646464647,
+      "tinygsm8k": 70.25272410252902
+    },
+    "Visual_LC_Avg": 58.94962557417955,
+    "LC_Avg": 54.25903364492038,
+    "Overall_Avg": 57.02471689518271,
+    "composition": {
+      "type": "cpt",
+      "n_tokens_B": 1,
+      "description": "1B CPT run",
+      "distribution": {
+        "prolong_lc_text": {
+          "total_pct": 34.43,
+          "total_tokens_B": 0.34
+        },
+        "fill_in_the_middle": {
+          "total_pct": 29.92,
+          "total_tokens_B": 0.3
+        },
+        "key_position_retrieval": {
+          "total_pct": 18.65,
+          "total_tokens_B": 0.19
+        },
+        "unshuffle": {
+          "total_pct": 14.92,
+          "total_tokens_B": 0.15
+        },
+        "counting": {
+          "total_pct": 2.08,
+          "total_tokens_B": 0.02
+        }
+      }
+    }
+  },
+  {
+    "name": "Mistral 3.1 Small (24B)",
+    "rawName": "mistral_pe_393k",
+    "path": "/gpfs/projects/ehpc486/lc_eval/evaluation_results/lc_eval/stage_1/mistral_pe_393k",
+    "isBaseline": true,
+    "baselineType": "mistral",
+    "metadata": {
+      "stage": "stage_1",
+      "trainingType": "sft",
+      "baseModel": "mistral"
+    },
+    "scores": {
+      "mmlongbench_doc": 39.94919992443629,
+      "mmlongbench_doc_corrected": 41.35589997484632,
+      "mmlb_131k": 66.39730277175654,
+      "mmlb_32k": 72.87917279710865,
+      "spiqa_eval": 70.6,
+      "slidevqa": 67.80083567170749,
+      "helmet": 37.0220338961039,
+      "longbench_v2": 39.0,
+      "dude": 52.792896398105306,
+      "tablevqa": 54.0,
+      "mmmu_pro": 37.6,
+      "tinymmlu": 77.0258579108519,
+      "mm_mt_bench": 74.3801652892562,
+      "gpqa": 12.626262626262626,
+      "tinygsm8k": 69.11900750539476
+    },
+    "Visual_LC_Avg": 56.86255125632676,
+    "LC_Avg": 52.14966767925806,
+    "Overall_Avg": 54.16990898438867,
+    "composition": null
+  },
+  {
+    "name": "Self-Improving v1 - Base Mistral - Mistral + 0.25 * SFT",
+    "rawName": "self_improving_pipelines_only_v1_unanswerable_reduced_naturalized_docfinqa_chartqa_mp_ep0_ba982_0.0_0.25_ind",
+    "path": "/gpfs/projects/ehpc486/lc_eval/evaluation_results/lc_eval/stage_1/self_improving_pipelines_only_v1_unanswerable_reduced_naturalized_docfinqa_chartqa_mp/self_improving_pipelines_only_v1_unanswerable_reduced_naturalized_docfinqa_chartqa_mp_ep0_ba982_0.0_0.25_ind",
+    "isBaseline": false,
+    "baselineType": null,
+    "metadata": {
+      "stage": "stage_1",
+      "trainingType": "sft",
+      "baseModel": "mistral"
+    },
+    "scores": {
+      "mmlongbench_doc": 43.14585464829116,
+      "mmlongbench_doc_corrected": 45.16938132030117,
+      "mmlb_131k": 68.73164131059323,
+      "mmlb_32k": 74.77481127786875,
+      "spiqa_eval": 78.0,
+      "slidevqa": 69.17745000683657,
+      "helmet": 32.358091038961035,
+      "longbench_v2": 35.0,
+      "dude": 52.68661631559417,
+      "tablevqa": 62.7,
+      "mmmu_pro": 38.0,
+      "tinymmlu": 76.15004805935324,
+      "mm_mt_bench": 71.48760330578511,
+      "gpqa": 9.595959595959595,
+      "tinygsm8k": 64.43330703632067
+    },
+    "Visual_LC_Avg": 58.947625813247505,
+    "LC_Avg": 52.63048073980576,
+    "Overall_Avg": 54.760717594390975,
+    "composition": {
+      "type": "sft",
+      "dataset_name": "self_improving_pipelines_only_v1_unanswerable_reduced_naturalized_docfinqa_chartqa_mp",
+      "version": "v1",
+      "distribution": {
+        "distractors_short": 10.95,
+        "recursive": 87.58,
+        "unanswerable": 1.01,
+        "multi_turn_no_think": 0.45
+      },
+      "counts": {
+        "distractors_short": 2701,
+        "recursive": 21597,
+        "unanswerable": 250,
+        "multi_turn_no_think": 111
+      },
+      "total_examples": 24659
+    }
+  },
+  {
+    "name": "Self-Improving v1 - Base Mistral - Mistral + 0.5 * LD CPT + 0.25 * SFT",
+    "rawName": "self_improving_pipelines_only_v1_unanswerable_reduced_naturalized_docfinqa_chartqa_mp_ep0_ba982_1.0_0.25_ind",
+    "path": "/gpfs/projects/ehpc486/lc_eval/evaluation_results/lc_eval/stage_1/self_improving_pipelines_only_v1_unanswerable_reduced_naturalized_docfinqa_chartqa_mp/self_improving_pipelines_only_v1_unanswerable_reduced_naturalized_docfinqa_chartqa_mp_ep0_ba982_1.0_0.25_ind",
+    "isBaseline": false,
+    "baselineType": null,
+    "metadata": {
+      "stage": "stage_1",
+      "trainingType": "sft",
+      "baseModel": "mistral"
+    },
+    "scores": {
+      "mmlongbench_doc": 42.39674456032352,
+      "mmlongbench_doc_corrected": 43.32532520038547,
+      "mmlb_131k": 69.98147952305364,
+      "mmlb_32k": 71.62660835673609,
+      "spiqa_eval": 79.4,
+      "slidevqa": 64.93447266785502,
+      "helmet": 42.314999523809526,
+      "longbench_v2": 39.0,
+      "dude": 56.77454249867742,
+      "tablevqa": 73.12500025,
+      "mmmu_pro": 36.0,
+      "tinymmlu": 73.97435877868632,
+      "mm_mt_bench": 71.98347107438016,
+      "gpqa": 11.11111111111111,
+      "tinygsm8k": 74.82232365088576
+    },
+    "Visual_LC_Avg": 58.173195467838525,
+    "LC_Avg": 53.79427154135509,
+    "Overall_Avg": 56.718029146393604,
+    "composition": {
+      "type": "sft",
+      "dataset_name": "self_improving_pipelines_only_v1_unanswerable_reduced_naturalized_docfinqa_chartqa_mp",
+      "version": "v1",
+      "distribution": {
+        "distractors_short": 10.95,
+        "recursive": 87.58,
+        "unanswerable": 1.01,
+        "multi_turn_no_think": 0.45
+      },
+      "counts": {
+        "distractors_short": 2701,
+        "recursive": 21597,
+        "unanswerable": 250,
+        "multi_turn_no_think": 111
+      },
+      "total_examples": 24659
+    }
+  },
+  {
+    "name": "Transcribe -> Distill - Base Mistral - Mistral + 0.5 * LD CPT + 0.25 * SFT",
+    "rawName": "transcibed_fcos_v1_unanswerable_reduced_naturalized_docfinqa_chartqa_mp_ep0_ba809_1.0_0.25_ind",
+    "path": "/gpfs/projects/ehpc486/lc_eval/evaluation_results/lc_eval/stage_1/transcibed_fcos_v1_unanswerable_reduced_naturalized_docfinqa_chartqa_mp/transcibed_fcos_v1_unanswerable_reduced_naturalized_docfinqa_chartqa_mp_ep0_ba809_1.0_0.25_ind",
+    "isBaseline": false,
+    "baselineType": null,
+    "metadata": {
+      "stage": "stage_1",
+      "trainingType": "sft",
+      "baseModel": "mistral"
+    },
+    "scores": {
+      "mmlongbench_doc": 41.77394638693326,
+      "mmlongbench_doc_corrected": 43.03064285327782,
+      "mmlb_131k": 66.3039984288445,
+      "mmlb_32k": 69.60499563880444,
+      "spiqa_eval": 77.60000000000001,
+      "slidevqa": 68.89146022444798,
+      "helmet": 50.05757063492064,
+      "longbench_v2": 42.0,
+      "dude": 52.59036441423858,
+      "tablevqa": 77.66666674999999,
+      "mmmu_pro": 40.06666666666667,
+      "tinymmlu": 72.89746463345945,
+      "mm_mt_bench": 74.04958677685951,
+      "gpqa": 13.131313131313133,
+      "tinygsm8k": 79.90268065343427
+    },
+    "Visual_LC_Avg": 57.0325679910911,
+    "LC_Avg": 54.281622322683404,
+    "Overall_Avg": 57.97115714621335,
+    "composition": {
+      "type": "sft",
+      "dataset_name": "transcibed_fcos_v1_unanswerable_reduced_naturalized_docfinqa_chartqa_mp",
+      "version": "v1",
+      "distribution": {
+        "full_context_one_shot": 100.0
+      },
+      "counts": {
+        "full_context_one_shot": 5713
+      },
+      "total_examples": 5713
+    }
+  },
+  {
+    "name": "Self-Improving v1 + SFT - Base Mistral - Mistral + 0.5 * LD CPT + 0.25 * SFT",
+    "rawName": "self_improving_with_extra_sft_data_v1_unanswerable_reduced_naturalized_docfinqa_chartqa_mp_ep1_ba1582_1.0_0.25_ind",
+    "path": "/gpfs/projects/ehpc486/lc_eval/evaluation_results/lc_eval/stage_1/self_improving_with_extra_sft_data_v1_unanswerable_reduced_naturalized_docfinqa_chartqa_mp/self_improving_with_extra_sft_data_v1_unanswerable_reduced_naturalized_docfinqa_chartqa_mp_ep1_ba1582_1.0_0.25_ind",
+    "isBaseline": false,
+    "baselineType": null,
+    "metadata": {
+      "stage": "stage_1",
+      "trainingType": "sft",
+      "baseModel": "mistral"
+    },
+    "scores": {
+      "mmlongbench_doc": 39.38814634957296,
+      "mmlongbench_doc_corrected": 39.477841324640444,
+      "mmlb_131k": 66.61991393662313,
+      "mmlb_32k": 73.72435343937963,
+      "spiqa_eval": 79.4,
+      "slidevqa": 67.38159430438843,
+      "helmet": 45.92991238095237,
+      "longbench_v2": 42.0,
+      "dude": 56.17002629561041,
+      "tablevqa": 78.20833350000001,
+      "mmmu_pro": 42.0,
+      "tinymmlu": 75.12913799256383,
+      "mm_mt_bench": 70.57851239669421,
+      "gpqa": 14.646464646464647,
+      "tinygsm8k": 85.41659435825501
+    },
+    "Visual_LC_Avg": 57.126979275035836,
+    "LC_Avg": 53.836473503895924,
+    "Overall_Avg": 58.40472206167634,
+    "composition": {
+      "type": "sft",
+      "dataset_name": "self_improving_with_extra_sft_data_v1_unanswerable_reduced_naturalized_docfinqa_chartqa_mp",
+      "version": "v1",
+      "distribution": {
+        "distractors_short": 5.67,
+        "recursive": 45.32,
+        "unanswerable": 0.52,
+        "multi_turn_no_think": 0.23,
+        "luth_sft": 20.98,
+        "smoltalk2_no_think": 20.98,
+        "docfinqa": 2.1,
+        "chartqa": 4.2
+      },
+      "counts": {
+        "distractors_short": 2701,
+        "recursive": 21597,
+        "unanswerable": 250,
+        "multi_turn_no_think": 111,
+        "luth_sft": 10000,
+        "smoltalk2_no_think": 10000,
+        "docfinqa": 1000,
+        "chartqa": 2000
+      },
+      "total_examples": 47659
+    }
+  },
+  {
+    "name": "HN + SFT - Base Mistral - Mistral + 0.5 * LD CPT + 0.25 * SFT",
+    "rawName": "hn_v0_plus_chart_fin_ep0_ba1041_1.0_0.25_ind",
+    "path": "/gpfs/projects/ehpc486/lc_eval/evaluation_results/lc_eval/stage_1/hn_v0_plus_chart_fin/hn_v0_plus_chart_fin_ep0_ba1041_1.0_0.25_ind",
+    "isBaseline": false,
+    "baselineType": null,
+    "metadata": {
+      "stage": "stage_1",
+      "trainingType": "sft",
+      "baseModel": "mistral"
+    },
+    "scores": {
+      "mmlongbench_doc": 42.87119123254375,
+      "mmlongbench_doc_corrected": 43.967845970944346,
+      "mmlb_131k": 64.54351145143652,
+      "mmlb_32k": 75.68936038758795,
+      "spiqa_eval": 80.80000000000001,
+      "slidevqa": 68.51827426223646,
+      "helmet": 47.41147639249639,
+      "longbench_v2": 44.0,
+      "dude": 56.68773369122921,
+      "tablevqa": 74.39583325,
+      "mmmu_pro": 41.0,
+      "tinymmlu": 75.66612888380203,
+      "mm_mt_bench": 72.76859504132231,
+      "gpqa": 10.606060606060606,
+      "tinygsm8k": 75.7543809953329
+    },
+    "Visual_LC_Avg": 58.71298616599637,
+    "LC_Avg": 55.46117417355933,
+    "Overall_Avg": 58.312026144332826,
+    "composition": {
+      "type": "sft",
+      "dataset_name": "hn_v0",
+      "version": "v0",
+      "distribution": {
+        "rag_short": 6.94,
+        "distractors_short": 6.95,
+        "true_multi_page_short": 11.12,
+        "full_context_one_shot": 12.0,
+        "recursive": 62.49,
+        "unanswerable": 0.5
+      },
+      "counts": {
+        "rag_short": 1519,
+        "distractors_short": 1521,
+        "true_multi_page_short": 2434,
+        "full_context_one_shot": 2627,
+        "recursive": 13682,
+        "unanswerable": 110
+      },
+      "total_examples": 21893
+    }
+  },
+  {
+    "name": "SP Questions Recursive - Base Mistral - Mistral + 0.5 * LD CPT + 0.25 * SFT",
+    "rawName": "recursive_sp_v0_plus_chart_fin_ep0_ba1127_1.0_0.25_ind",
+    "path": "/gpfs/projects/ehpc486/lc_eval/evaluation_results/lc_eval/stage_1/recursive_sp_v0_plus_chart_fin/recursive_sp_v0_plus_chart_fin_ep0_ba1127_1.0_0.25_ind",
+    "isBaseline": false,
+    "baselineType": null,
+    "metadata": {
+      "stage": "stage_1",
+      "trainingType": "sft",
+      "baseModel": "mistral"
+    },
+    "scores": {
+      "mmlongbench_doc": 41.68110686333652,
+      "mmlongbench_doc_corrected": 42.983616956954954,
+      "mmlb_131k": 68.2781697123075,
+      "mmlb_32k": 78.07007821715237,
+      "spiqa_eval": 78.2,
+      "slidevqa": 62.046667833800186,
+      "helmet": 39.987197503607504,
+      "longbench_v2": 41.0,
+      "dude": 53.032302083382476,
+      "tablevqa": 75.54166675,
+      "mmmu_pro": 38.0,
+      "tinymmlu": 75.229075511151,
+      "mm_mt_bench": 74.62809917355372,
+      "gpqa": 14.14141414141414,
+      "tinygsm8k": 74.94074838248201
+    },
+    "Visual_LC_Avg": 57.68199027782234,
+    "LC_Avg": 53.38489239631769,
+    "Overall_Avg": 57.18400954194283,
+    "composition": {
+      "type": "sft",
+      "dataset_name": "recursive_sp_v0",
+      "version": "v0",
+      "distribution": {
+        "recursive_sp": 100.0
+      },
+      "counts": {
+        "recursive_sp": 13308
+      },
+      "total_examples": 13308
+    }
+  },
+  {
+    "name": "Distill v1 - Base Mistral - Mistral + 0.5 * LD CPT + 0.25 * SFT",
+    "rawName": "visual_fcos_v1_unanswerable_reduced_naturalized_docfinqa_chartqa_mp_ep0_ba502_1.0_0.25_ind",
+    "path": "/gpfs/projects/ehpc486/lc_eval/evaluation_results/lc_eval/stage_1/visual_fcos_v1_unanswerable_reduced_naturalized_docfinqa_chartqa_mp/visual_fcos_v1_unanswerable_reduced_naturalized_docfinqa_chartqa_mp_ep0_ba502_1.0_0.25_ind",
+    "isBaseline": false,
+    "baselineType": null,
+    "metadata": {
+      "stage": "stage_1",
+      "trainingType": "sft",
+      "baseModel": "mistral"
+    },
+    "scores": {
+      "mmlongbench_doc": 46.57415543275254,
+      "mmlongbench_doc_corrected": 47.43655890269853,
+      "mmlb_131k": 65.69648557131978,
+      "mmlb_32k": 71.29821309027209,
+      "spiqa_eval": 80.19999999999999,
+      "slidevqa": 71.16104742769463,
+      "helmet": 53.06898212454212,
+      "longbench_v2": 38.0,
+      "dude": 53.965989192294906,
+      "tablevqa": 76.6,
+      "mmmu_pro": 39.666666666666664,
+      "tinymmlu": 72.87881052706379,
+      "mm_mt_bench": 74.54545454545453,
+      "gpqa": 15.151515151515152,
+      "tinygsm8k": 77.21649259543483
+    },
+    "Visual_LC_Avg": 59.35540826950541,
+    "LC_Avg": 55.900178967696824,
+    "Overall_Avg": 58.8973580818473,
+    "composition": {
+      "type": "sft",
+      "dataset_name": "visual_fcos_v1_unanswerable_reduced_naturalized_docfinqa_chartqa_mp",
+      "version": "v1",
+      "distribution": {
+        "plain_distill_fcos_size_vds": 100.0
+      },
+      "counts": {
+        "plain_distill_fcos_size_vds": 5713
+      },
+      "total_examples": 5713
+    }
+  },
+  {
+    "name": "Pipelines Only v1 - Base Mistral - Mistral + 0.5 * LD CPT + 0.25 * SFT",
+    "rawName": "pipelines_only_v1_unanswerable_reduced_naturalized_docfinqa_chartqa_mp_ep0_ba1911_1.0_0.25_ind",
+    "path": "/gpfs/projects/ehpc486/lc_eval/evaluation_results/lc_eval/stage_1/pipelines_only_v1_unanswerable_reduced_naturalized_docfinqa_chartqa_mp/pipelines_only_v1_unanswerable_reduced_naturalized_docfinqa_chartqa_mp_ep0_ba1911_1.0_0.25_ind",
+    "isBaseline": false,
+    "baselineType": null,
+    "metadata": {
+      "stage": "stage_1",
+      "trainingType": "sft",
+      "baseModel": "mistral"
+    },
+    "scores": {
+      "mmlongbench_doc": 41.94467510247637,
+      "mmlongbench_doc_corrected": 43.695571271527925,
+      "mmlb_131k": 65.31632791484502,
+      "mmlb_32k": 74.05452040736948,
+      "spiqa_eval": 78.60000000000001,
+      "slidevqa": 69.0659379869352,
+      "helmet": 50.73842730158731,
+      "longbench_v2": 40.0,
+      "dude": 54.84777495089389,
+      "tablevqa": 74.39583325,
+      "mmmu_pro": 39.0,
+      "tinymmlu": 74.93587472341736,
+      "mm_mt_bench": 72.97520661157024,
+      "gpqa": 15.151515151515152,
+      "tinygsm8k": 75.03024701008174
+    },
+    "Visual_LC_Avg": 58.15413460567464,
+    "LC_Avg": 54.957904366954395,
+    "Overall_Avg": 57.983460778814646,
+    "composition": {
+      "type": "sft",
+      "dataset_name": "pipelines_only",
+      "version": "v1",
+      "distribution": {
+        "adj_short": 5.43,
+        "rag_short": 5.49,
+        "true_multi_page_short": 20.08,
+        "distractors_short": 5.47,
+        "full_context_one_shot": 21.05,
+        "recursive": 22.25,
+        "non_think_qf_task_5k": 18.42,
+        "unanswerable": 0.75,
+        "multi_turn_no_think": 1.06
+      },
+      "counts": {
+        "adj_short": 1473,
+        "rag_short": 1490,
+        "true_multi_page_short": 5452,
+        "distractors_short": 1486,
+        "full_context_one_shot": 5713,
+        "recursive": 6039,
+        "non_think_qf_task_5k": 5000,
+        "unanswerable": 204,
+        "multi_turn_no_think": 288
+      },
+      "total_examples": 27145
+    }
+  },
+  {
+    "name": "Mix v1 - Base Mistral - Mistral + 0.5 * LD CPT + 0.25 * SFT",
+    "rawName": "everything_v1_ep0_ba2155_1.0_0.25_ind",
+    "path": "/gpfs/projects/ehpc486/lc_eval/evaluation_results/lc_eval/stage_1/everything_v1/everything_v1_ep0_ba2155_1.0_0.25_ind",
+    "isBaseline": false,
+    "baselineType": null,
+    "metadata": {
+      "stage": "stage_1",
+      "trainingType": "sft",
+      "baseModel": "mistral"
+    },
+    "scores": {
+      "mmlongbench_doc": 42.01597446838973,
+      "mmlongbench_doc_corrected": 43.11905920500862,
+      "mmlb_131k": 65.00132173754818,
+      "mmlb_32k": 73.25758625819876,
+      "spiqa_eval": 76.8,
+      "slidevqa": 65.83952951197467,
+      "helmet": 53.40863365079365,
+      "longbench_v2": 40.0,
+      "dude": 59.10633336767875,
+      "tablevqa": 78.0625,
+      "mmmu_pro": 40.0,
+      "tinymmlu": 74.42137223081355,
+      "mm_mt_bench": 73.22314049586777,
+      "gpqa": 17.17171717171717,
+      "tinygsm8k": 80.92447274204473
+    },
+    "Visual_LC_Avg": 58.05663409146646,
+    "LC_Avg": 55.21855477494904,
+    "Overall_Avg": 58.823442722669036,
+    "composition": {
+      "type": "sft",
+      "dataset_name": "everything_v1",
+      "version": "v1",
+      "distribution": {
+        "adj_short": 3.26,
+        "rag_short": 3.3,
+        "true_multi_page_short": 12.08,
+        "distractors_short": 3.29,
+        "full_context_one_shot": 12.65,
+        "recursive": 13.38,
+        "unanswerable": 0.45,
+        "multi_turn_no_think": 0.64,
+        "luth_sft": 22.15,
+        "smoltalk2_no_think": 22.15,
+        "pdfa_parsed_cat_3k": 6.65
+      },
+      "counts": {
+        "adj_short": 1473,
+        "rag_short": 1490,
+        "true_multi_page_short": 5452,
+        "distractors_short": 1486,
+        "full_context_one_shot": 5713,
+        "recursive": 6039,
+        "unanswerable": 204,
+        "multi_turn_no_think": 288,
+        "luth_sft": 10000,
+        "smoltalk2_no_think": 10000,
+        "pdfa_parsed_cat_3k": 3000
+      },
+      "total_examples": 45145
+    }
+  },
+  {
+    "name": "Distill 10K + SFT v2 - Base Mistral + 0.5 * LD CPT - Mistral + 0.5 * LD CPT + 0.25 * SFT",
+    "rawName": "plain_distill_10k_extra_sft_v2_ep0_ba2558_0.75_0.25_ind",
+    "path": "/gpfs/projects/ehpc486/lc_eval/evaluation_results/lc_eval/stage_1/plain_distill_10k_extra_sft_v2/plain_distill_10k_extra_sft_v2_ep0_ba2558_0.75_0.25_ind",
+    "isBaseline": false,
+    "baselineType": null,
+    "metadata": {
+      "stage": "stage_1",
+      "trainingType": "sft",
+      "baseModel": "mistral"
+    },
+    "scores": {
+      "mmlongbench_doc": 44.70565670527012,
+      "mmlongbench_doc_corrected": 45.163914465711315,
+      "mmlb_131k": 58.540039572974216,
+      "mmlb_32k": 70.68078395508809,
+      "spiqa_eval": 77.60000000000001,
+      "slidevqa": 72.03204687592506,
+      "helmet": 54.358043809523814,
+      "longbench_v2": 39.0,
+      "dude": 53.136499057682684,
+      "tablevqa": 75.7,
+      "mmmu_pro": 39.733333333333334,
+      "tinymmlu": 74.13855058349937,
+      "mm_mt_bench": 72.14876033057851,
+      "gpqa": 15.656565656565657,
+      "tinygsm8k": 78.34448441025681
+    },
+    "Visual_LC_Avg": 57.37649010544192,
+    "LC_Avg": 54.70212305527191,
+    "Overall_Avg": 58.0625785837606,
+    "composition": {
+      "type": "sft",
+      "dataset_name": "plain_distill_10k_extra_sft_v2",
+      "version": "v2",
+      "distribution": {
+        "plain_distill": 72.94,
+        "multi_turn_no_think": 3.71,
+        "luth_sft": 7.29,
+        "smoltalk2_no_think": 7.29,
+        "pdfa_parsed_cat_3k": 2.92,
+        "docfinqa": 2.92,
+        "chartqa": 2.92
+      },
+      "counts": {
+        "plain_distill": 10000,
+        "multi_turn_no_think": 509,
+        "luth_sft": 1000,
+        "smoltalk2_no_think": 1000,
+        "pdfa_parsed_cat_3k": 400,
+        "docfinqa": 400,
+        "chartqa": 400
+      },
+      "total_examples": 13709
+    }
+  },
+  {
+    "name": "Self-Improving (Answer Model = Mistral) + SFT - Base Mistral - Mistral + 0.5 * LD CPT + 0.25 * SFT",
+    "rawName": "self_improving_extra_sft_from_mistral_instruct_only_v1_unanswerable_reduced_naturalized_docfinqa_chartqa_mp_ep1_ba1294_1.0_0.25_ind",
+    "path": "/gpfs/projects/ehpc486/lc_eval/evaluation_results/lc_eval/stage_1/self_improving_extra_sft_from_mistral_instruct_only_v1_unanswerable_reduced_naturalized_docfinqa_chartqa_mp/self_improving_extra_sft_from_mistral_instruct_only_v1_unanswerable_reduced_naturalized_docfinqa_chartqa_mp_ep1_ba1294_1.0_0.25_ind",
+    "isBaseline": false,
+    "baselineType": null,
+    "metadata": {
+      "stage": "stage_1",
+      "trainingType": "sft",
+      "baseModel": "mistral"
+    },
+    "scores": {
+      "mmlongbench_doc": 40.95470583575004,
+      "mmlongbench_doc_corrected": 43.429647351495305,
+      "mmlb_131k": 69.72369473227043,
+      "mmlb_32k": 68.20484921643668,
+      "spiqa_eval": 79.0,
+      "slidevqa": 66.00486337653163,
+      "helmet": 52.44884996336996,
+      "longbench_v2": 36.0,
+      "dude": 55.4992719905664,
+      "tablevqa": 75.0625,
+      "mmmu_pro": 40.0,
+      "tinymmlu": 76.41512469811578,
+      "mm_mt_bench": 71.2396694214876,
+      "gpqa": 17.17171717171717,
+      "tinygsm8k": 81.79287447148921
+    },
+    "Visual_LC_Avg": 57.302838750508414,
+    "LC_Avg": 54.03323530830256,
+    "Overall_Avg": 58.19651788194868,
+    "composition": {
+      "type": "sft",
+      "dataset_name": "self_improving_extra_sft_from_mistral_instruct_only_v1_unanswerable_reduced_naturalized_docfinqa_chartqa_mp",
+      "version": "v1",
+      "distribution": {
+        "distractors_short": 6.25,
+        "recursive": 39.81,
+        "unanswerable": 0.58,
+        "multi_turn_no_think": 0.19,
+        "luth_sft": 23.12,
+        "smoltalk2_no_think": 23.12,
+        "docfinqa": 2.31,
+        "chartqa": 4.62
+      },
+      "counts": {
+        "distractors_short": 2701,
+        "recursive": 17217,
+        "unanswerable": 250,
+        "multi_turn_no_think": 82,
+        "luth_sft": 10000,
+        "smoltalk2_no_think": 10000,
+        "docfinqa": 1000,
+        "chartqa": 2000
+      },
+      "total_examples": 43250
+    }
+  },
+  {
+    "name": "Distill 50K + SFT v2 - Base Mistral + 0.5 * LD CPT - Mistral + 0.5 * LD CPT + 0.25 * SFT",
+    "rawName": "plain_distill_50k_extra_sft_v2_ep0_ba8975_0.75_0.25_ind",
+    "path": "/gpfs/projects/ehpc486/lc_eval/evaluation_results/lc_eval/stage_1/plain_distill_50k_extra_sft_v2/plain_distill_50k_extra_sft_v2_ep0_ba8975_0.75_0.25_ind",
+    "isBaseline": false,
+    "baselineType": null,
+    "metadata": {
+      "stage": "stage_1",
+      "trainingType": "sft",
+      "baseModel": "mistral"
+    },
+    "scores": {
+      "mmlongbench_doc": 44.165512862191314,
+      "mmlongbench_doc_corrected": 45.810660885158036,
+      "mmlb_131k": 68.98963293800809,
+      "mmlb_32k": 72.91151243918887,
+      "spiqa_eval": 77.4,
+      "slidevqa": 70.50835450284674,
+      "helmet": 57.98603238095238,
+      "longbench_v2": 36.0,
+      "dude": 52.19927680773836,
+      "tablevqa": 76.39999999999999,
+      "mmmu_pro": 35.93333333333334,
+      "tinymmlu": 75.38082273161719,
+      "mm_mt_bench": 72.14876033057851,
+      "gpqa": 17.67676767676768,
+      "tinygsm8k": 83.31152599338853
+    },
+    "Visual_LC_Avg": 59.09749173918857,
+    "LC_Avg": 56.07137285201047,
+    "Overall_Avg": 59.12147952545127,
+    "composition": {
+      "type": "sft",
+      "dataset_name": "plain_distill_50k_extra_sft_v2",
+      "version": "v2",
+      "distribution": {
+        "plain_distill": 67.11,
+        "multi_turn_no_think": 0.68,
+        "luth_sft": 13.42,
+        "smoltalk2_no_think": 13.42,
+        "pdfa_parsed_cat_3k": 1.34,
+        "docfinqa": 1.34,
+        "chartqa": 2.68
+      },
+      "counts": {
+        "plain_distill": 50000,
+        "multi_turn_no_think": 509,
+        "luth_sft": 10000,
+        "smoltalk2_no_think": 10000,
+        "pdfa_parsed_cat_3k": 1000,
+        "docfinqa": 1000,
+        "chartqa": 2000
+      },
+      "total_examples": 74509
+    }
+  },
+  {
+    "name": "Mix v1 - Short Stage Only - Base Mistral - Mistral + 0.5 * LD CPT + 0.25 * SFT",
+    "rawName": "everything_short_only_v1_unanswerable_3k_ep0_ba1433_1.0_0.25_ind",
+    "path": "/gpfs/projects/ehpc486/lc_eval/evaluation_results/lc_eval/stage_1/everything_short_only_v1_unanswerable_3k/everything_short_only_v1_unanswerable_3k_ep0_ba1433_1.0_0.25_ind",
+    "isBaseline": false,
+    "baselineType": null,
+    "metadata": {
+      "stage": "stage_1",
+      "trainingType": "sft",
+      "baseModel": "mistral"
+    },
+    "scores": {
+      "mmlongbench_doc": 42.72006864989578,
+      "mmlongbench_doc_corrected": 45.004269097104135,
+      "mmlb_131k": 67.10145175307485,
+      "mmlb_32k": 74.77422329413146,
+      "spiqa_eval": 79.2,
+      "slidevqa": 72.02090057058359,
+      "helmet": 54.5686337118437,
+      "longbench_v2": 41.0,
+      "dude": 55.369782938833175,
+      "tablevqa": 77.58333325,
+      "mmmu_pro": 40.0,
+      "tinymmlu": 74.04982794412766,
+      "mm_mt_bench": 74.13223140495869,
+      "gpqa": 18.181818181818183,
+      "tinygsm8k": 80.32142663704995
+    },
+    "Visual_LC_Avg": 59.498449383937164,
+    "LC_Avg": 56.569916251933336,
+    "Overall_Avg": 59.73519782889475,
+    "composition": {
+      "type": "sft",
+      "dataset_name": "everything_short_only_v1_unanswerable_3k",
+      "version": "v1",
+      "distribution": {
+        "short": 0.0,
+        "pdfa_parsed_cat_3k": 6.23,
+        "adj_short": 3.08,
+        "docfinqa": 2.09,
+        "smoltalk2_no_think": 20.89,
+        "recursive": 10.67,
+        "true_multi_page_short": 11.39,
+        "distractors_short": 3.11,
+        "rag_short": 3.11,
+        "chartqa": 2.09,
+        "luth_sft": 20.9,
+        "full_context_one_shot": 10.37,
+        "unanswerable": 5.56,
+        "multi_turn_no_think": 0.51
+      },
+      "counts": {
+        "short": 0,
+        "pdfa_parsed_cat_3k": 2981,
+        "adj_short": 1473,
+        "docfinqa": 1000,
+        "smoltalk2_no_think": 9999,
+        "recursive": 5108,
+        "true_multi_page_short": 5452,
+        "distractors_short": 1486,
+        "rag_short": 1490,
+        "chartqa": 1000,
+        "luth_sft": 10000,
+        "full_context_one_shot": 4962,
+        "unanswerable": 2663,
+        "multi_turn_no_think": 244
+      },
+      "total_examples": 47858
+    }
+  },
+  {
+    "name": "Mix v1 - Base Mistral - Mistral + 0.5 * LD CPT + 0.25 * SFT",
+    "rawName": "everything_v1_unanswerable_reduced_naturalized_docfinqa_chartqa_mp_ep0_ba2648_1.0_0.25_ind",
+    "path": "/gpfs/projects/ehpc486/lc_eval/evaluation_results/lc_eval/stage_1/everything_v1_unanswerable_reduced_naturalized_docfinqa_chartqa_mp/everything_v1_unanswerable_reduced_naturalized_docfinqa_chartqa_mp_ep0_ba2648_1.0_0.25_ind",
+    "isBaseline": false,
+    "baselineType": null,
+    "metadata": {
+      "stage": "stage_1",
+      "trainingType": "sft",
+      "baseModel": "mistral"
+    },
+    "scores": {
+      "mmlongbench_doc": 42.54024842884087,
+      "mmlongbench_doc_corrected": 43.31037075056563,
+      "mmlb_131k": 64.70517910760336,
+      "mmlb_32k": 72.2331027778206,
+      "spiqa_eval": 81.60000000000001,
+      "slidevqa": 65.88757964192136,
+      "helmet": 50.568744444444434,
+      "longbench_v2": 39.0,
+      "dude": 54.40424181329207,
+      "tablevqa": 73.72916675,
+      "mmmu_pro": 36.0,
+      "tinymmlu": 73.10876775368978,
+      "mm_mt_bench": 70.66115702479338,
+      "gpqa": 16.161616161616163,
+      "tinygsm8k": 79.19043088575607
+    },
+    "Visual_LC_Avg": 57.18012042000731,
+    "LC_Avg": 54.08118337056104,
+    "Overall_Avg": 57.54004036935625,
+    "composition": {
+      "type": "sft",
+      "dataset_name": "everything_v1_unanswerable_reduced_naturalized_docfinqa_chartqa_mp",
+      "version": "v1",
+      "distribution": {
+        "adj_short": 3.06,
+        "rag_short": 3.09,
+        "true_multi_page_short": 11.32,
+        "distractors_short": 3.09,
+        "full_context_one_shot": 11.87,
+        "recursive": 12.54,
+        "unanswerable": 0.42,
+        "multi_turn_no_think": 0.6,
+        "luth_sft": 20.77,
+        "smoltalk2_no_think": 20.77,
+        "pdfa_parsed_cat_3k": 6.23,
+        "docfinqa": 2.08,
+        "chartqa": 4.15
+      },
+      "counts": {
+        "adj_short": 1473,
+        "rag_short": 1490,
+        "true_multi_page_short": 5452,
+        "distractors_short": 1486,
+        "full_context_one_shot": 5713,
+        "recursive": 6039,
+        "unanswerable": 204,
+        "multi_turn_no_think": 288,
+        "luth_sft": 10000,
+        "smoltalk2_no_think": 10000,
+        "pdfa_parsed_cat_3k": 3000,
+        "docfinqa": 1000,
+        "chartqa": 2000
+      },
+      "total_examples": 48145
+    }
+  },
+  {
+    "name": "MP Questions Recursive - Base Mistral - Mistral + 0.5 * LD CPT + 0.25 * SFT",
+    "rawName": "recursive_mp_v0_plus_chart_fin_ep0_ba1648_1.0_0.25_ind",
+    "path": "/gpfs/projects/ehpc486/lc_eval/evaluation_results/lc_eval/stage_1/recursive_mp_v0_plus_chart_fin/recursive_mp_v0_plus_chart_fin_ep0_ba1648_1.0_0.25_ind",
+    "isBaseline": false,
+    "baselineType": null,
+    "metadata": {
+      "stage": "stage_1",
+      "trainingType": "sft",
+      "baseModel": "mistral"
+    },
+    "scores": {
+      "mmlongbench_doc": 41.56503640169441,
+      "mmlongbench_doc_corrected": 42.78607384617021,
+      "mmlb_131k": 61.546455436147575,
+      "mmlb_32k": 68.58814193130601,
+      "spiqa_eval": 78.60000000000001,
+      "slidevqa": 67.17105878216266,
+      "helmet": 40.55102396825397,
+      "longbench_v2": 35.0,
+      "dude": 55.70435535268334,
+      "tablevqa": 77.0625,
+      "mmmu_pro": 35.0,
+      "tinymmlu": 76.67498104418704,
+      "mm_mt_bench": 73.14049586776859,
+      "gpqa": 12.121212121212121,
+      "tinygsm8k": 77.14242646639472
+    },
+    "Visual_LC_Avg": 56.22685362502737,
+    "LC_Avg": 51.61401821480227,
+    "Overall_Avg": 56.17691741453204,
+    "composition": {
+      "type": "sft",
+      "dataset_name": "recursive_mp_v0",
+      "version": "v0",
+      "distribution": {
+        "recursive_mp": 100.0
+      },
+      "counts": {
+        "recursive_mp": 17192
+      },
+      "total_examples": 17192
+    }
+  },
+  {
+    "name": "Recursive + SFT - Base Mistral - Mistral + 0.5 * LD CPT + 0.25 * SFT",
+    "rawName": "synthetic_cot_no_think_extra_sft_v1_unanswerable_reduced_naturalized_docfinqa_chartqa_mp_ep0_ba4799_1.0_0.25_ind",
+    "path": "/gpfs/projects/ehpc486/lc_eval/evaluation_results/lc_eval/stage_1/synthetic_cot_no_think_extra_sft_v1_unanswerable_reduced_naturalized_docfinqa_chartqa_mp/synthetic_cot_no_think_extra_sft_v1_unanswerable_reduced_naturalized_docfinqa_chartqa_mp_ep0_ba4799_1.0_0.25_ind",
+    "isBaseline": false,
+    "baselineType": null,
+    "metadata": {
+      "stage": "stage_1",
+      "trainingType": "sft",
+      "baseModel": "mistral"
+    },
+    "scores": {
+      "mmlongbench_doc": 42.10379782568656,
+      "mmlongbench_doc_corrected": 43.26004130526673,
+      "mmlb_131k": 63.85961416802211,
+      "mmlb_32k": 76.38245257247216,
+      "spiqa_eval": 81.0,
+      "slidevqa": 61.857514217808344,
+      "helmet": 55.28743682539683,
+      "longbench_v2": 36.0,
+      "dude": 54.64197325537635,
+      "tablevqa": 73.54166675,
+      "mmmu_pro": 39.0,
+      "tinymmlu": 74.50933548195647,
+      "mm_mt_bench": 70.0,
+      "gpqa": 15.151515151515152,
+      "tinygsm8k": 79.95693298409392
+    },
+    "Visual_LC_Avg": 57.01756555743871,
+    "LC_Avg": 54.174103771253634,
+    "Overall_Avg": 57.770152035839644,
+    "composition": {
+      "type": "sft",
+      "dataset_name": "synthetic_cot_no_think_extra_sft_v1_unanswerable_reduced_naturalized_docfinqa_chartqa_mp",
+      "version": "v1",
+      "distribution": {
+        "synthetic_cot_no_think": 46.57,
+        "synthetic_cot_qf_task_5k": 8.48,
+        "unanswerable": 0.35,
+        "multi_turn_no_think": 0.49,
+        "luth_sft": 16.97,
+        "smoltalk2_no_think": 16.97,
+        "pdfa_parsed_cat_3k": 5.09,
+        "docfinqa": 1.7,
+        "chartqa": 3.39
+      },
+      "counts": {
+        "synthetic_cot_no_think": 27445,
+        "synthetic_cot_qf_task_5k": 5000,
+        "unanswerable": 204,
+        "multi_turn_no_think": 288,
+        "luth_sft": 10000,
+        "smoltalk2_no_think": 10000,
+        "pdfa_parsed_cat_3k": 3000,
+        "docfinqa": 1000,
+        "chartqa": 2000
+      },
+      "total_examples": 58937
+    }
+  },
+  {
+    "name": "Doc + SFT - Base Mistral - Mistral + 0.5 * LD CPT + 0.25 * SFT",
+    "rawName": "doc_v0_plus_chart_fin_ep0_ba2715_1.0_0.25_ind",
+    "path": "/gpfs/projects/ehpc486/lc_eval/evaluation_results/lc_eval/stage_1/doc_v0_plus_chart_fin/doc_v0_plus_chart_fin_ep0_ba2715_1.0_0.25_ind",
+    "isBaseline": false,
+    "baselineType": null,
+    "metadata": {
+      "stage": "stage_1",
+      "trainingType": "sft",
+      "baseModel": "mistral"
+    },
+    "scores": {
+      "mmlongbench_doc": 41.29389755847717,
+      "mmlongbench_doc_corrected": 42.40139731843756,
+      "mmlb_131k": 70.58654342393861,
+      "mmlb_32k": 67.89591643818794,
+      "spiqa_eval": 79.60000000000001,
+      "slidevqa": 68.05971008440976,
+      "helmet": 45.294693968253966,
+      "longbench_v2": 40.0,
+      "dude": 55.69955167682704,
+      "tablevqa": 78.20833350000001,
+      "mmmu_pro": 42.0,
+      "tinymmlu": 75.13495635515098,
+      "mm_mt_bench": 71.40495867768595,
+      "gpqa": 9.090909090909092,
+      "tinygsm8k": 77.86127362865952
+    },
+    "Visual_LC_Avg": 57.65616941671302,
+    "LC_Avg": 53.9039638085665,
+    "Overall_Avg": 57.63547611472917,
+    "composition": {
+      "type": "sft",
+      "dataset_name": "doc_v0",
+      "version": "v0",
+      "distribution": {
+        "adj_short": 5.9,
+        "true_multi_page_short": 15.61,
+        "full_context_one_shot": 12.03,
+        "recursive": 66.14,
+        "unanswerable": 0.32
+      },
+      "counts": {
+        "adj_short": 1499,
+        "true_multi_page_short": 3968,
+        "full_context_one_shot": 3059,
+        "recursive": 16818,
+        "unanswerable": 82
+      },
+      "total_examples": 25426
+    }
+  },
+  {
+    "name": "Recursive + SFT Page Indices - Base Mistral - Mistral + 0.5 * LD CPT + 0.25 * SFT",
+    "rawName": "synthetic_cot_extra_sft_v1_page_indices_unanswerable_reduced_naturalized_docfinqa_chartqa_mp_ep0_ba4215_1.0_0.25_ind",
+    "path": "/gpfs/projects/ehpc486/lc_eval/evaluation_results/lc_eval/stage_1/synthetic_cot_extra_sft_v1_page_indices_unanswerable_reduced_naturalized_docfinqa_chartqa_mp/synthetic_cot_extra_sft_v1_page_indices_unanswerable_reduced_naturalized_docfinqa_chartqa_mp_ep0_ba4215_1.0_0.25_ind",
+    "isBaseline": false,
+    "baselineType": null,
+    "metadata": {
+      "stage": "stage_1",
+      "trainingType": "sft",
+      "baseModel": "mistral"
+    },
+    "scores": {
+      "mmlongbench_doc": 44.383144659164294,
+      "mmlongbench_doc_corrected": 45.09836931184016,
+      "mmlb_131k": 69.15132576394325,
+      "mmlb_32k": 73.0970509696455,
+      "spiqa_eval": 80.39999999999999,
+      "slidevqa": 69.43665935762571,
+      "helmet": 64.67509424488992,
+      "longbench_v2": 43.0,
+      "dude": 52.73142416831894,
+      "tablevqa": 77.43333325,
+      "mmmu_pro": 37.8,
+      "tinymmlu": 75.3469412397504,
+      "mm_mt_bench": 71.65289256198348,
+      "gpqa": 40.4040404040404,
+      "tinygsm8k": 91.07553245536089
+    },
+    "Visual_LC_Avg": 58.98299570508964,
+    "LC_Avg": 57.69663355942847,
+    "Overall_Avg": 62.37905389243753,
+    "composition": {
+      "type": "sft",
+      "dataset_name": "synthetic_cot_extra_sft_v1_unanswerable_reduced_naturalized_docfinqa_chartqa_mp",
+      "version": "v1",
+      "distribution": {
+        "synthetic_cot": 46.43,
+        "synthetic_cot_qf_task_5k": 8.52,
+        "unanswerable": 0.35,
+        "multi_turn_w_cot": 0.49,
+        "luth_sft": 17.04,
+        "smoltalk2_think": 16.94,
+        "pdfa_parsed_cat_3k": 5.11,
+        "docfinqa": 1.7,
+        "chartqa": 3.41
+      },
+      "counts": {
+        "synthetic_cot": 27245,
+        "synthetic_cot_qf_task_5k": 5000,
+        "unanswerable": 204,
+        "multi_turn_w_cot": 288,
+        "luth_sft": 10000,
+        "smoltalk2_think": 9937,
+        "pdfa_parsed_cat_3k": 3000,
+        "docfinqa": 1000,
+        "chartqa": 2000
+      },
+      "total_examples": 58674
+    }
+  },
+  {
+    "name": "Mix v0 - Base Mistral - Mistral + 0.5 * LD CPT + 0.25 * SFT",
+    "rawName": "everything_v0_ep0_ba2168_0.75_0.25_ind",
+    "path": "/gpfs/projects/ehpc486/lc_eval/evaluation_results/lc_eval/stage_1/everything_v0/everything_v0_ep0_ba2168_0.75_0.25_ind",
+    "isBaseline": false,
+    "baselineType": null,
+    "metadata": {
+      "stage": "stage_1",
+      "trainingType": "sft",
+      "baseModel": "mistral"
+    },
+    "scores": {
+      "mmlongbench_doc": 44.36947765900922,
+      "mmlongbench_doc_corrected": 45.9737039042579,
+      "mmlb_131k": 64.50552158674385,
+      "mmlb_32k": 75.65218133875842,
+      "spiqa_eval": 79.4,
+      "slidevqa": 70.00178453727216,
+      "helmet": 49.84565063492063,
+      "longbench_v2": 40.0,
+      "dude": 55.429720155826715,
+      "tablevqa": 74.39583325,
+      "mmmu_pro": 39.0,
+      "tinymmlu": 76.80820846326965,
+      "mm_mt_bench": 72.31404958677686,
+      "gpqa": 16.666666666666664,
+      "tinygsm8k": 76.86296378635775
+    },
+    "Visual_LC_Avg": 59.32206486364472,
+    "LC_Avg": 55.722254977098615,
+    "Overall_Avg": 58.748384104657326,
+    "composition": {
+      "type": "sft",
+      "dataset_name": "everything_v0",
+      "version": "v0",
+      "distribution": {
+        "adj_short": 3.02,
+        "rag_short": 3.06,
+        "true_multi_page_short": 12.9,
+        "distractors_short": 3.07,
+        "full_context_one_shot": 11.46,
+        "recursive": 12.85,
+        "unanswerable": 0.39,
+        "multi_turn_no_think": 0.85,
+        "luth_sft": 20.15,
+        "smoltalk2_no_think": 20.15,
+        "pdfa_parsed_cat_3k": 6.05,
+        "docfinqa": 2.02,
+        "chartqa": 4.03
+      },
+      "counts": {
+        "adj_short": 1499,
+        "rag_short": 1519,
+        "true_multi_page_short": 6402,
+        "distractors_short": 1521,
+        "full_context_one_shot": 5686,
+        "recursive": 6374,
+        "unanswerable": 192,
+        "multi_turn_no_think": 424,
+        "luth_sft": 10000,
+        "smoltalk2_no_think": 10000,
+        "pdfa_parsed_cat_3k": 3000,
+        "docfinqa": 1000,
+        "chartqa": 2000
+      },
+      "total_examples": 49617
+    }
+  },
+  {
+    "name": "Mix v0 - Base Mistral-Base - Mistral + 0.5 * LD CPT + 0.25 * SFT",
+    "rawName": "everything_v0_ep0_ba2167_1.0_1.0_0.25_ind",
+    "path": "/gpfs/projects/ehpc486/lc_eval/evaluation_results/lc_eval/stage_1/everything_v0/everything_v0_ep0_ba2167_1.0_1.0_0.25_ind",
+    "isBaseline": false,
+    "baselineType": null,
+    "metadata": {
+      "stage": "stage_1",
+      "trainingType": "sft",
+      "baseModel": "mistral"
+    },
+    "scores": {
+      "mmlongbench_doc": 42.19060199211547,
+      "mmlongbench_doc_corrected": 42.92550732799717,
+      "mmlb_131k": 58.890371647298906,
+      "mmlb_32k": 70.24008638359798,
+      "spiqa_eval": 77.2,
+      "slidevqa": 67.05086212634974,
+      "helmet": 49.45173180708181,
+      "longbench_v2": 34.0,
+      "dude": 54.39518883231539,
+      "tablevqa": 40.37499975,
+      "mmmu_pro": 36.0,
+      "tinymmlu": 73.91280357854694,
+      "mm_mt_bench": 74.29752066115702,
+      "gpqa": 12.626262626262626,
+      "tinygsm8k": 70.01592402800046
+    },
+    "Visual_LC_Avg": 55.94876971827912,
+    "LC_Avg": 52.39304376459456,
+    "Overall_Avg": 53.57145738404824,
+    "composition": {
+      "type": "sft",
+      "dataset_name": "everything_v0",
+      "version": "v0",
+      "distribution": {
+        "adj_short": 3.02,
+        "rag_short": 3.06,
+        "true_multi_page_short": 12.9,
+        "distractors_short": 3.07,
+        "full_context_one_shot": 11.46,
+        "recursive": 12.85,
+        "unanswerable": 0.39,
+        "multi_turn_no_think": 0.85,
+        "luth_sft": 20.15,
+        "smoltalk2_no_think": 20.15,
+        "pdfa_parsed_cat_3k": 6.05,
+        "docfinqa": 2.02,
+        "chartqa": 4.03
+      },
+      "counts": {
+        "adj_short": 1499,
+        "rag_short": 1519,
+        "true_multi_page_short": 6402,
+        "distractors_short": 1521,
+        "full_context_one_shot": 5686,
+        "recursive": 6374,
+        "unanswerable": 192,
+        "multi_turn_no_think": 424,
+        "luth_sft": 10000,
+        "smoltalk2_no_think": 10000,
+        "pdfa_parsed_cat_3k": 3000,
+        "docfinqa": 1000,
+        "chartqa": 2000
+      },
+      "total_examples": 49617
+    }
+  },
+  {
+    "name": "Mix v0 - Base Mistral - Mistral + 0.5 * LD CPT + 0.25 * SFT",
+    "rawName": "everything_v0_ep0_ba2169_1.0_0.25_ind",
+    "path": "/gpfs/projects/ehpc486/lc_eval/evaluation_results/lc_eval/stage_1/everything_v0/everything_v0_ep0_ba2169_1.0_0.25_ind",
+    "isBaseline": false,
+    "baselineType": null,
+    "metadata": {
+      "stage": "stage_1",
+      "trainingType": "sft",
+      "baseModel": "mistral"
+    },
+    "scores": {
+      "mmlongbench_doc": 43.95005552875014,
+      "mmlongbench_doc_corrected": 44.98485098974947,
+      "mmlb_131k": 65.08496497054216,
+      "mmlb_32k": 72.01735587143368,
+      "spiqa_eval": 76.8,
+      "slidevqa": 67.57023633863535,
+      "helmet": 54.02824730158731,
+      "longbench_v2": 40.0,
+      "dude": 56.177264546127816,
+      "tablevqa": 75.875,
+      "mmmu_pro": 42.0,
+      "tinymmlu": 74.48214061013482,
+      "mm_mt_bench": 73.22314049586777,
+      "gpqa": 15.656565656565657,
+      "tinygsm8k": 81.42433323968208
+    },
+    "Visual_LC_Avg": 58.29745470753977,
+    "LC_Avg": 55.47662194335324,
+    "Overall_Avg": 58.88494370327175,
+    "composition": {
+      "type": "sft",
+      "dataset_name": "everything_v0",
+      "version": "v0",
+      "distribution": {
+        "adj_short": 3.02,
+        "rag_short": 3.06,
+        "true_multi_page_short": 12.9,
+        "distractors_short": 3.07,
+        "full_context_one_shot": 11.46,
+        "recursive": 12.85,
+        "unanswerable": 0.39,
+        "multi_turn_no_think": 0.85,
+        "luth_sft": 20.15,
+        "smoltalk2_no_think": 20.15,
+        "pdfa_parsed_cat_3k": 6.05,
+        "docfinqa": 2.02,
+        "chartqa": 4.03
+      },
+      "counts": {
+        "adj_short": 1499,
+        "rag_short": 1519,
+        "true_multi_page_short": 6402,
+        "distractors_short": 1521,
+        "full_context_one_shot": 5686,
+        "recursive": 6374,
+        "unanswerable": 192,
+        "multi_turn_no_think": 424,
+        "luth_sft": 10000,
+        "smoltalk2_no_think": 10000,
+        "pdfa_parsed_cat_3k": 3000,
+        "docfinqa": 1000,
+        "chartqa": 2000
+      },
+      "total_examples": 49617
+    }
+  },
+  {
+    "name": "Self-Improving (Answer Model = Merged LD) + SFT - Base Mistral - Mistral + 0.5 * LD CPT + 0.25 * SFT",
+    "rawName": "self_improving_extra_sft_from_length_difficulty_only_v1_unanswerable_reduced_naturalized_docfinqa_chartqa_mp_ep1_ba1610_1.0_0.25_ind",
+    "path": "/gpfs/projects/ehpc486/lc_eval/evaluation_results/lc_eval/stage_1/self_improving_extra_sft_from_length_difficulty_only_v1_unanswerable_reduced_naturalized_docfinqa_chartqa_mp/self_improving_extra_sft_from_length_difficulty_only_v1_unanswerable_reduced_naturalized_docfinqa_chartqa_mp_ep1_ba1610_1.0_0.25_ind",
+    "isBaseline": false,
+    "baselineType": null,
+    "metadata": {
+      "stage": "stage_1",
+      "trainingType": "sft",
+      "baseModel": "mistral"
+    },
+    "scores": {
+      "mmlongbench_doc": 42.01936092584309,
+      "mmlongbench_doc_corrected": 43.28160982125181,
+      "mmlb_131k": 65.38081799224126,
+      "mmlb_32k": 68.88745525997957,
+      "spiqa_eval": 77.60000000000001,
+      "slidevqa": 67.37857678177045,
+      "helmet": 55.16429238095238,
+      "longbench_v2": 37.0,
+      "dude": 56.773126555025975,
+      "tablevqa": 76.4375,
+      "mmmu_pro": 38.0,
+      "tinymmlu": 75.5674621381248,
+      "mm_mt_bench": 71.81818181818181,
+      "gpqa": 18.181818181818183,
+      "tinygsm8k": 82.13079252732099
+    },
+    "Visual_LC_Avg": 57.28682455601869,
+    "LC_Avg": 54.48565496463307,
+    "Overall_Avg": 58.374732958834024,
+    "composition": {
+      "type": "sft",
+      "dataset_name": "self_improving_extra_sft_from_length_difficulty_only_v1_unanswerable_reduced_naturalized_docfinqa_chartqa_mp",
+      "version": "v1",
+      "distribution": {
+        "distractors_short": 5.73,
+        "recursive": 45.48,
+        "unanswerable": 0.52,
+        "multi_turn_no_think": 0.21,
+        "luth_sft": 20.9,
+        "smoltalk2_no_think": 20.9,
+        "docfinqa": 2.09,
+        "chartqa": 4.18
+      },
+      "counts": {
+        "distractors_short": 2741,
+        "recursive": 21766,
+        "unanswerable": 250,
+        "multi_turn_no_think": 101,
+        "luth_sft": 10000,
+        "smoltalk2_no_think": 10000,
+        "docfinqa": 1000,
+        "chartqa": 2000
+      },
+      "total_examples": 47858
+    }
+  },
+  {
+    "name": "Distill v1 + Eval Only Page Indices - Base Mistral - Mistral + 0.5 * LD CPT + 0.25 * SFT",
+    "rawName": "no_train_page_indices_visual_fcos_ep0_ba502_1.0_0.25_ind",
+    "path": "/gpfs/projects/ehpc486/lc_eval/evaluation_results/lc_eval/stage_1/no_train_page_indices_visual_fcos/no_train_page_indices_visual_fcos_ep0_ba502_1.0_0.25_ind",
+    "isBaseline": false,
+    "baselineType": null,
+    "metadata": {
+      "stage": "stage_1",
+      "trainingType": "sft",
+      "baseModel": "mistral"
+    },
+    "scores": {
+      "mmlongbench_doc": 46.04148549485049,
+      "mmlongbench_doc_corrected": 48.24459766355152,
+      "mmlb_131k": 62.45496571130754,
+      "mmlb_32k": 71.0217201914075,
+      "spiqa_eval": 79.60000000000001,
+      "slidevqa": 69.65799894973011,
+      "helmet": 52.63451307692307,
+      "longbench_v2": 40.0,
+      "dude": 53.90419310695521,
+      "tablevqa": 76.6,
+      "mmmu_pro": 38.266666666666666,
+      "tinymmlu": 72.94580508658224,
+      "mm_mt_bench": 73.88429752066116,
+      "gpqa": 15.151515151515152,
+      "tinygsm8k": 78.3032862139963
+    },
+    "Visual_LC_Avg": 58.5541601863004,
+    "LC_Avg": 55.49493427434068,
+    "Overall_Avg": 58.580736322276465,
+    "composition": {
+      "type": "sft",
+      "dataset_name": "visual_fcos_v1_unanswerable_reduced_naturalized_docfinqa_chartqa_mp",
+      "version": "v1",
+      "distribution": {
+        "plain_distill_fcos_size_vds": 100.0
+      },
+      "counts": {
+        "plain_distill_fcos_size_vds": 5713
+      },
+      "total_examples": 5713
+    }
+  },
+  {
+    "name": "Recursive + SFT No Page Indices - Base Mistral - Mistral + 0.5 * LD CPT + 0.25 * SFT",
+    "rawName": "synthetic_cot_extra_sft_v1_unanswerable_reduced_naturalized_docfinqa_chartqa_mp_ep0_ba4196_1.0_0.25_ind",
+    "path": "/gpfs/projects/ehpc486/lc_eval/evaluation_results/lc_eval/stage_1/synthetic_cot_extra_sft_v1_unanswerable_reduced_naturalized_docfinqa_chartqa_mp/synthetic_cot_extra_sft_v1_unanswerable_reduced_naturalized_docfinqa_chartqa_mp_ep0_ba4196_1.0_0.25_ind",
+    "isBaseline": false,
+    "baselineType": null,
+    "metadata": {
+      "stage": "stage_1",
+      "trainingType": "sft",
+      "baseModel": "mistral"
+    },
+    "scores": {
+      "mmlongbench_doc": 42.20457897161782,
+      "mmlongbench_doc_corrected": 42.27365517664691,
+      "mmlb_131k": 64.89843803646016,
+      "mmlb_32k": 71.5624309509787,
+      "spiqa_eval": 76.6,
+      "slidevqa": 68.43617426272282,
+      "helmet": 66.05636355919405,
+      "longbench_v2": 46.0,
+      "dude": 53.22387180520507,
+      "tablevqa": 76.23333325,
+      "mmmu_pro": 36.53333333333333,
+      "tinymmlu": 77.07364268950369,
+      "mm_mt_bench": 72.8099173553719,
+      "gpqa": 43.93939393939394,
+      "tinygsm8k": 92.46506962934266
+    },
+    "Visual_LC_Avg": 57.09985820060525,
+    "LC_Avg": 56.83193909535319,
+    "Overall_Avg": 62.020680197318065,
+    "composition": {
+      "type": "sft",
+      "dataset_name": "synthetic_cot_extra_sft_v1_unanswerable_reduced_naturalized_docfinqa_chartqa_mp",
+      "version": "v1",
+      "distribution": {
+        "synthetic_cot": 46.43,
+        "synthetic_cot_qf_task_5k": 8.52,
+        "unanswerable": 0.35,
+        "multi_turn_w_cot": 0.49,
+        "luth_sft": 17.04,
+        "smoltalk2_think": 16.94,
+        "pdfa_parsed_cat_3k": 5.11,
+        "docfinqa": 1.7,
+        "chartqa": 3.41
+      },
+      "counts": {
+        "synthetic_cot": 27245,
+        "synthetic_cot_qf_task_5k": 5000,
+        "unanswerable": 204,
+        "multi_turn_w_cot": 288,
+        "luth_sft": 10000,
+        "smoltalk2_think": 9937,
+        "pdfa_parsed_cat_3k": 3000,
+        "docfinqa": 1000,
+        "chartqa": 2000
+      },
+      "total_examples": 58674
+    }
+  },
+  {
+    "name": "Mix v1 1 Stage Training - Base Mistral - Mistral + 0.5 * LD CPT + 0.25 * SFT",
+    "rawName": "everything_in_long_stage_v1_unanswerable_reduced_naturalized_docfinqa_chartqa_mp_ep0_ba2855_1.0_0.25_ind",
+    "path": "/gpfs/projects/ehpc486/lc_eval/evaluation_results/lc_eval/stage_1/everything_in_long_stage_v1_unanswerable_reduced_naturalized_docfinqa_chartqa_mp/everything_in_long_stage_v1_unanswerable_reduced_naturalized_docfinqa_chartqa_mp_ep0_ba2855_1.0_0.25_ind",
+    "isBaseline": false,
+    "baselineType": null,
+    "metadata": {
+      "stage": "stage_1",
+      "trainingType": "sft",
+      "baseModel": "mistral"
+    },
+    "scores": {
+      "mmlongbench_doc": 41.84136148762215,
+      "mmlongbench_doc_corrected": 43.21205281970138,
+      "mmlb_131k": 65.96997967856339,
+      "mmlb_32k": 73.56872330263519,
+      "spiqa_eval": 78.8,
+      "slidevqa": 68.06482134741576,
+      "helmet": 57.432269206349204,
+      "longbench_v2": 39.0,
+      "dude": 56.542208562854555,
+      "tablevqa": 78.25,
+      "mmmu_pro": 40.0,
+      "tinymmlu": 74.36393524972658,
+      "mm_mt_bench": 72.64462809917356,
+      "gpqa": 13.636363636363635,
+      "tinygsm8k": 82.71288251645159
+    },
+    "Visual_LC_Avg": 58.19985786646541,
+    "LC_Avg": 55.703927050642704,
+    "Overall_Avg": 59.0692817271238,
+    "composition": {
+      "type": "sft",
+      "dataset_name": "everything_in_long_stage_v1_unanswerable_reduced_naturalized_docfinqa_chartqa_mp",
+      "version": "v1",
+      "distribution": {
+        "adj_short": 3.06,
+        "rag_short": 3.09,
+        "true_multi_page_short": 11.32,
+        "distractors_short": 3.09,
+        "full_context_one_shot": 11.87,
+        "recursive": 12.54,
+        "unanswerable": 0.42,
+        "multi_turn_no_think": 0.6,
+        "luth_sft": 20.77,
+        "smoltalk2_no_think": 20.77,
+        "pdfa_parsed_cat_3k": 6.23,
+        "docfinqa": 2.08,
+        "chartqa": 4.15
+      },
+      "counts": {
+        "adj_short": 1473,
+        "rag_short": 1490,
+        "true_multi_page_short": 5452,
+        "distractors_short": 1486,
+        "full_context_one_shot": 5713,
+        "recursive": 6039,
+        "unanswerable": 204,
+        "multi_turn_no_think": 288,
+        "luth_sft": 10000,
+        "smoltalk2_no_think": 10000,
+        "pdfa_parsed_cat_3k": 3000,
+        "docfinqa": 1000,
+        "chartqa": 2000
+      },
+      "total_examples": 48145
+    }
+  },
+  {
+    "name": "Magpie + SFT v2 - Base Mistral + 0.5 * LD CPT - Mistral + 0.5 * LD CPT + 0.25 * SFT",
+    "rawName": "magpie_50k_extra_sft_v2_ep0_ba8587_0.75_0.25_ind",
+    "path": "/gpfs/projects/ehpc486/lc_eval/evaluation_results/lc_eval/stage_1/magpie_50k_extra_sft_v2/magpie_50k_extra_sft_v2_ep0_ba8587_0.75_0.25_ind",
+    "isBaseline": false,
+    "baselineType": null,
+    "metadata": {
+      "stage": "stage_1",
+      "trainingType": "sft",
+      "baseModel": "mistral"
+    },
+    "scores": {
+      "mmlongbench_doc": 44.38703859492517,
+      "mmlongbench_doc_corrected": 47.45612505415732,
+      "mmlb_131k": 66.170472145115,
+      "mmlb_32k": 70.4565667808621,
+      "spiqa_eval": 78.0,
+      "slidevqa": 69.84293776726838,
+      "helmet": 54.79264974358974,
+      "longbench_v2": 36.0,
+      "dude": 53.60483283877687,
+      "tablevqa": 76.26666675,
+      "mmmu_pro": 36.93333333333334,
+      "tinymmlu": 76.5504240299753,
+      "mm_mt_bench": 68.7603305785124,
+      "gpqa": 18.181818181818183,
+      "tinygsm8k": 77.94191284195786
+    },
+    "Visual_LC_Avg": 58.65299553018414,
+    "LC_Avg": 55.33882786558682,
+    "Overall_Avg": 58.35634057601944,
+    "composition": {
+      "type": "sft",
+      "dataset_name": "magpie_50k_extra_sft_v2",
+      "version": "v2",
+      "distribution": {
+        "magpie": 66.82,
+        "multi_turn_no_think": 0.69,
+        "luth_sft": 13.54,
+        "smoltalk2_no_think": 13.54,
+        "pdfa_parsed_cat_3k": 1.35,
+        "docfinqa": 1.35,
+        "chartqa": 2.71
+      },
+      "counts": {
+        "magpie": 49352,
+        "multi_turn_no_think": 509,
+        "luth_sft": 10000,
+        "smoltalk2_no_think": 10000,
+        "pdfa_parsed_cat_3k": 1000,
+        "docfinqa": 1000,
+        "chartqa": 2000
+      },
+      "total_examples": 73861
+    }
+  },
+  {
+    "name": "Big SFT - Base Mistral - Mistral + 0.25 * SFT",
+    "rawName": "everything_big_sft_v1_unanswerable_reduced_naturalized_docfinqa_chartqa_mp_ep1_ba3865_0.0_0.25_ind",
+    "path": "/gpfs/projects/ehpc486/lc_eval/evaluation_results/lc_eval/stage_1/everything_big_sft_v1_unanswerable_reduced_naturalized_docfinqa_chartqa_mp/everything_big_sft_v1_unanswerable_reduced_naturalized_docfinqa_chartqa_mp_ep1_ba3865_0.0_0.25_ind",
+    "isBaseline": false,
+    "baselineType": null,
+    "metadata": {
+      "stage": "stage_1",
+      "trainingType": "sft",
+      "baseModel": "mistral"
+    },
+    "scores": {
+      "mmlongbench_doc": 43.63366127452551,
+      "mmlongbench_doc_corrected": 45.36387486219131,
+      "mmlb_131k": 71.67007174217756,
+      "mmlb_32k": 73.09687695810365,
+      "spiqa_eval": 76.8,
+      "slidevqa": 70.864087167182,
+      "helmet": 47.13621357864358,
+      "longbench_v2": 37.0,
+      "dude": 53.45921333856207,
+      "tablevqa": 76.73333325,
+      "mmmu_pro": 41.06666666666667,
+      "tinymmlu": 77.48626842332087,
+      "mm_mt_bench": 72.97520661157024,
+      "gpqa": 10.606060606060606,
+      "tinygsm8k": 78.06940464250289
+    },
+    "Visual_LC_Avg": 59.681297557123685,
+    "LC_Avg": 55.27799986517321,
+    "Overall_Avg": 58.3973959414338,
+    "composition": {
+      "type": "sft",
+      "dataset_name": "everything_big_sft_v1_unanswerable_reduced_naturalized_docfinqa_chartqa_mp",
+      "version": "v1",
+      "distribution": {
+        "adj_short": 0.37,
+        "rag_short": 0.37,
+        "true_multi_page_short": 1.36,
+        "distractors_short": 0.37,
+        "full_context_one_shot": 1.42,
+        "recursive": 1.5,
+        "unanswerable": 0.05,
+        "multi_turn_no_think": 0.07,
+        "luth_sft": 49.52,
+        "smoltalk2_no_think": 36.07,
+        "pdfa_parsed_cat_3k": 0.75,
+        "docfinqa": 1.1,
+        "chartqa": 7.05
+      },
+      "counts": {
+        "adj_short": 1473,
+        "rag_short": 1490,
+        "true_multi_page_short": 5452,
+        "distractors_short": 1486,
+        "full_context_one_shot": 5713,
+        "recursive": 6039,
+        "unanswerable": 204,
+        "multi_turn_no_think": 288,
+        "luth_sft": 198862,
+        "smoltalk2_no_think": 144849,
+        "pdfa_parsed_cat_3k": 3000,
+        "docfinqa": 4405,
+        "chartqa": 28299
+      },
+      "total_examples": 401560
+    }
+  },
+  {
+    "name": "Big SFT - Base Mistral - Mistral + 0.5 * LD CPT + 0.25 * SFT",
+    "rawName": "everything_big_sft_v1_unanswerable_reduced_naturalized_docfinqa_chartqa_mp_ep1_ba3865_1.0_0.25_ind",
+    "path": "/gpfs/projects/ehpc486/lc_eval/evaluation_results/lc_eval/stage_1/everything_big_sft_v1_unanswerable_reduced_naturalized_docfinqa_chartqa_mp/everything_big_sft_v1_unanswerable_reduced_naturalized_docfinqa_chartqa_mp_ep1_ba3865_1.0_0.25_ind",
+    "isBaseline": false,
+    "baselineType": null,
+    "metadata": {
+      "stage": "stage_1",
+      "trainingType": "sft",
+      "baseModel": "mistral"
+    },
+    "scores": {
+      "mmlongbench_doc": 43.380359120609555,
+      "mmlongbench_doc_corrected": 44.634548776037256,
+      "mmlb_131k": 70.43576566541378,
+      "mmlb_32k": 73.34146970059841,
+      "spiqa_eval": 76.0,
+      "slidevqa": 61.722695506448986,
+      "helmet": 54.403381330891335,
+      "longbench_v2": 37.0,
+      "dude": 54.936486665446225,
+      "tablevqa": 78.625,
+      "mmmu_pro": 41.0,
+      "tinymmlu": 74.57998092188619,
+      "mm_mt_bench": 72.47933884297521,
+      "gpqa": 13.636363636363635,
+      "tinygsm8k": 81.23931770513106
+    },
+    "Visual_LC_Avg": 58.07522090575904,
+    "LC_Avg": 54.98183834568069,
+    "Overall_Avg": 58.49431385812011,
+    "composition": {
+      "type": "sft",
+      "dataset_name": "everything_big_sft_v1_unanswerable_reduced_naturalized_docfinqa_chartqa_mp",
+      "version": "v1",
+      "distribution": {
+        "adj_short": 0.37,
+        "rag_short": 0.37,
+        "true_multi_page_short": 1.36,
+        "distractors_short": 0.37,
+        "full_context_one_shot": 1.42,
+        "recursive": 1.5,
+        "unanswerable": 0.05,
+        "multi_turn_no_think": 0.07,
+        "luth_sft": 49.52,
+        "smoltalk2_no_think": 36.07,
+        "pdfa_parsed_cat_3k": 0.75,
+        "docfinqa": 1.1,
+        "chartqa": 7.05
+      },
+      "counts": {
+        "adj_short": 1473,
+        "rag_short": 1490,
+        "true_multi_page_short": 5452,
+        "distractors_short": 1486,
+        "full_context_one_shot": 5713,
+        "recursive": 6039,
+        "unanswerable": 204,
+        "multi_turn_no_think": 288,
+        "luth_sft": 198862,
+        "smoltalk2_no_think": 144849,
+        "pdfa_parsed_cat_3k": 3000,
+        "docfinqa": 4405,
+        "chartqa": 28299
+      },
+      "total_examples": 401560
+    }
+  },
+  {
+    "name": "Big SFT - Base Mistral + 0.5 * LD CPT - Mistral + 0.5 * LD CPT + 0.25 * SFT",
+    "rawName": "everything_big_sft_v1_unanswerable_reduced_naturalized_docfinqa_chartqa_mp_ep1_ba4242_0.75_0.25_ind",
+    "path": "/gpfs/projects/ehpc486/lc_eval/evaluation_results/lc_eval/stage_1/everything_big_sft_v1_unanswerable_reduced_naturalized_docfinqa_chartqa_mp/everything_big_sft_v1_unanswerable_reduced_naturalized_docfinqa_chartqa_mp_ep1_ba4242_0.75_0.25_ind",
+    "isBaseline": false,
+    "baselineType": null,
+    "metadata": {
+      "stage": "stage_1",
+      "trainingType": "sft",
+      "baseModel": "mistral"
+    },
+    "scores": {
+      "mmlongbench_doc": 43.1166557892893,
+      "mmlongbench_doc_corrected": 45.05163460133995,
+      "mmlb_131k": 67.92776536751578,
+      "mmlb_32k": 73.51094682147041,
+      "spiqa_eval": 81.19999999999999,
+      "slidevqa": 72.94460369275397,
+      "helmet": 52.03711666666667,
+      "longbench_v2": 37.0,
+      "dude": 53.9057901736922,
+      "tablevqa": 80.29166675,
+      "mmmu_pro": 40.0,
+      "tinymmlu": 77.15199899839385,
+      "mm_mt_bench": 74.21487603305785,
+      "gpqa": 15.151515151515152,
+      "tinygsm8k": 83.70180650235838
+    },
+    "Visual_LC_Avg": 59.409566074343594,
+    "LC_Avg": 55.686814139091034,
+    "Overall_Avg": 59.8137584365369,
+    "composition": {
+      "type": "sft",
+      "dataset_name": "everything_big_sft_v1_unanswerable_reduced_naturalized_docfinqa_chartqa_mp",
+      "version": "v1",
+      "distribution": {
+        "adj_short": 0.37,
+        "rag_short": 0.37,
+        "true_multi_page_short": 1.36,
+        "distractors_short": 0.37,
+        "full_context_one_shot": 1.42,
+        "recursive": 1.5,
+        "unanswerable": 0.05,
+        "multi_turn_no_think": 0.07,
+        "luth_sft": 49.52,
+        "smoltalk2_no_think": 36.07,
+        "pdfa_parsed_cat_3k": 0.75,
+        "docfinqa": 1.1,
+        "chartqa": 7.05
+      },
+      "counts": {
+        "adj_short": 1473,
+        "rag_short": 1490,
+        "true_multi_page_short": 5452,
+        "distractors_short": 1486,
+        "full_context_one_shot": 5713,
+        "recursive": 6039,
+        "unanswerable": 204,
+        "multi_turn_no_think": 288,
+        "luth_sft": 198862,
+        "smoltalk2_no_think": 144849,
+        "pdfa_parsed_cat_3k": 3000,
+        "docfinqa": 4405,
+        "chartqa": 28299
+      },
+      "total_examples": 401560
+    }
+  },
+  {
+    "name": "Distill + SFT v1 - Base Mistral - Mistral + 0.5 * LD CPT + 0.25 * SFT",
+    "rawName": "plain_distill_extra_sft_v1_unanswerable_reduced_naturalized_docfinqa_chartqa_mp_ep0_ba3329_1.0_0.25_ind",
+    "path": "/gpfs/projects/ehpc486/lc_eval/evaluation_results/lc_eval/stage_1/plain_distill_extra_sft_v1_unanswerable_reduced_naturalized_docfinqa_chartqa_mp/plain_distill_extra_sft_v1_unanswerable_reduced_naturalized_docfinqa_chartqa_mp_ep0_ba3329_1.0_0.25_ind",
+    "isBaseline": false,
+    "baselineType": null,
+    "metadata": {
+      "stage": "stage_1",
+      "trainingType": "sft",
+      "baseModel": "mistral"
+    },
+    "scores": {
+      "mmlongbench_doc": 44.64375142012465,
+      "mmlongbench_doc_corrected": 46.347974055943865,
+      "mmlb_131k": 64.73212880566176,
+      "mmlb_32k": 74.93376018569474,
+      "spiqa_eval": 76.4,
+      "slidevqa": 67.93203027541928,
+      "helmet": 58.841193553113555,
+      "longbench_v2": 43.0,
+      "dude": 55.94132014124389,
+      "tablevqa": 74.6875,
+      "mmmu_pro": 39.0,
+      "tinymmlu": 75.65924108798123,
+      "mm_mt_bench": 72.56198347107438,
+      "gpqa": 16.161616161616163,
+      "tinygsm8k": 83.40134849396371
+    },
+    "Visual_LC_Avg": 59.08849414734803,
+    "LC_Avg": 57.04651980465022,
+    "Overall_Avg": 59.61625651012248,
+    "composition": {
+      "type": "sft",
+      "dataset_name": "plain_distill_extra_sft_v1_unanswerable_reduced_naturalized_docfinqa_chartqa_mp",
+      "version": "v1",
+      "distribution": {
+        "plain_distill": 51.22,
+        "unanswerable": 0.38,
+        "multi_turn_no_think": 0.53,
+        "luth_sft": 18.41,
+        "smoltalk2_no_think": 18.41,
+        "pdfa_parsed_cat_3k": 5.52,
+        "docfinqa": 1.84,
+        "chartqa": 3.68
+      },
+      "counts": {
+        "plain_distill": 27822,
+        "unanswerable": 204,
+        "multi_turn_no_think": 288,
+        "luth_sft": 10000,
+        "smoltalk2_no_think": 10000,
+        "pdfa_parsed_cat_3k": 3000,
+        "docfinqa": 1000,
+        "chartqa": 2000
+      },
+      "total_examples": 54314
+    }
+  }
+];
+        const columns = ["Visual_LC_Avg", "LC_Avg", "Overall_Avg", "mmlongbench_doc", "mmlongbench_doc_corrected", "mmlb_131k", "mmlb_32k", "spiqa_eval", "slidevqa", "helmet", "longbench_v2", "dude", "tablevqa", "mmmu_pro", "tinymmlu", "mm_mt_bench", "gpqa", "tinygsm8k"];
+        const avgCols = ["Visual_LC_Avg", "LC_Avg", "Overall_Avg"];
+        const visualLcBenchmarks = ["dude", "mmlb", "mmlongbench_doc", "mmlongbench", "slidevqa"];
+        const lcBenchmarks = ["dude", "mmlb", "mmlongbench_doc", "mmlongbench", "slidevqa", "helmet", "longbench_v2"];
+        const bestScores = {"Visual_LC_Avg": 69.2856716315845, "LC_Avg": 66.6594582474979, "Overall_Avg": 68.89285044618158, "mmlongbench_doc": 54.89139309560856, "mmlongbench_doc_corrected": 57.303687659377424, "mmlb_131k": 78.63637234482043, "mmlb_32k": 82.38708158632261, "spiqa_eval": 82.2, "slidevqa": 84.5081635079478, "helmet": 67.5616361904762, "longbench_v2": 50.0, "dude": 61.77286878318935, "tablevqa": 82.1, "mmmu_pro": 55.00000000000001, "tinymmlu": 79.51917030958612, "mm_mt_bench": 83.63636363636363, "gpqa": 43.93939393939394, "tinygsm8k": 92.46506962934266};
+        const minScores = {"Visual_LC_Avg": 55.94876971827912, "LC_Avg": 51.61401821480227, "Overall_Avg": 53.57145738404824, "mmlongbench_doc": 37.9115409239417, "mmlongbench_doc_corrected": 38.76564211289156, "mmlb_131k": 58.540039572974216, "mmlb_32k": 67.89591643818794, "spiqa_eval": 70.39999999999999, "slidevqa": 61.722695506448986, "helmet": 32.358091038961035, "longbench_v2": 34.0, "dude": 51.926397405052214, "tablevqa": 40.37499975, "mmmu_pro": 35.0, "tinymmlu": 72.87881052706379, "mm_mt_bench": 68.7603305785124, "gpqa": 9.090909090909092, "tinygsm8k": 64.43330703632067};
+        const maxScores = {"Visual_LC_Avg": 69.2856716315845, "LC_Avg": 66.6594582474979, "Overall_Avg": 68.89285044618158, "mmlongbench_doc": 54.89139309560856, "mmlongbench_doc_corrected": 57.303687659377424, "mmlb_131k": 78.63637234482043, "mmlb_32k": 82.38708158632261, "spiqa_eval": 82.2, "slidevqa": 84.5081635079478, "helmet": 67.5616361904762, "longbench_v2": 50.0, "dude": 61.77286878318935, "tablevqa": 82.1, "mmmu_pro": 55.00000000000001, "tinymmlu": 79.51917030958612, "mm_mt_bench": 83.63636363636363, "gpqa": 43.93939393939394, "tinygsm8k": 92.46506962934266};
+
+        // State
+        let sortColumn = "Visual_LC_Avg";
+        let sortDirection = "desc"; // "asc", "desc", or "none"
+        let visibleColumns = new Set(columns);
+
+        // DOM elements
+        const tbody = document.querySelector('#leaderboard tbody');
+        const searchInput = document.getElementById('searchInput');
+        const filterStage = document.getElementById('filterStage');
+        const filterTrainingType = document.getElementById('filterTrainingType');
+        const filterBaseModel = document.getElementById('filterBaseModel');
+        const showBaselinesOnly = document.getElementById('showBaselinesOnly');
+        const showDeltaBaseline = document.getElementById('showDeltaBaseline');
+        const showDeltaSelected = document.getElementById('showDeltaSelected');
+        const showHeatmap = document.getElementById('showHeatmap');
+        const normalizeAvgs = document.getElementById('normalizeAvgs');
+        const compareSearch = document.getElementById('compareSearch');
+        const compareDropdown = document.getElementById('compareDropdown');
+        const compareSelected = document.getElementById('compareSelected');
+        const columnToggleBtn = document.getElementById('columnToggleBtn');
+        const columnDropdown = document.getElementById('columnDropdown');
+        const exportLatexBtn = document.getElementById('exportLatex');
+        const resetFiltersBtn = document.getElementById('resetFilters');
+        const visibleCountEl = document.getElementById('visibleCount');
+        const toast = document.getElementById('toast');
+        const compositionModal = document.getElementById('compositionModal');
+        const modalTitle = document.getElementById('modalTitle');
+        const modalBody = document.getElementById('modalBody');
+        const modalClose = document.getElementById('modalClose');
+
+        // Build baseline lookup by base model type
+        const baselinesByType = {};
+        checkpoints.filter(cp => cp.isBaseline && cp.baselineType).forEach(cp => {
+            // baselineType can be 'qwen', 'mistral', or 'strong'
+            baselinesByType[cp.baselineType] = cp;
+        });
+
+        // Function to get the appropriate baseline for a checkpoint
+        function getBaselineForCheckpoint(cp) {
+            // First try to find a baseline matching the checkpoint's base model
+            const baseModel = cp.metadata.baseModel;
+            if (baselinesByType[baseModel]) {
+                return baselinesByType[baseModel];
+            }
+            // Fall back to 'strong' baseline if available
+            if (baselinesByType['strong']) {
+                return baselinesByType['strong'];
+            }
+            return null;
+        }
+
+        // Build checkpoint lookup for quick access
+        const checkpointsByName = {};
+        checkpoints.forEach(cp => {
+            checkpointsByName[cp.rawName] = cp;
+        });
+
+        // Modal functions
+        function showCompositionModal(checkpointName) {
+            const cp = checkpointsByName[checkpointName];
+            if (!cp) return;
+
+            modalTitle.textContent = `Data Composition: ${cp.name}`;
+            
+            if (!cp.composition) {
+                modalBody.innerHTML = '<div class="no-composition">No composition data available for this checkpoint.</div>';
+                compositionModal.classList.add('show');
+                return;
+            }
+
+            const comp = cp.composition;
+            let html = '';
+
+            if (comp.type === 'cpt') {
+                // CPT composition display
+                html = `
+                    <div class="comp-section">
+                        <h3>CPT Training Info</h3>
+                        <div class="comp-info">
+                            <div class="comp-info-item">
+                                <span class="comp-info-label">Training Tokens</span>
+                                <span class="comp-info-value">${comp.n_tokens_B}B</span>
+                            </div>
+                            <div class="comp-info-item">
+                                <span class="comp-info-label">Description</span>
+                                <span class="comp-info-value">${comp.description}</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="comp-section">
+                        <h3>Task Distribution (by tokens)</h3>
+                        <div class="dist-chart">
+                `;
+                
+                // Sort by total percentage descending
+                const tasks = Object.entries(comp.distribution)
+                    .sort((a, b) => b[1].total_pct - a[1].total_pct);
+                
+                for (const [task, data] of tasks) {
+                    const label = task.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+                    html += `
+                        <div class="dist-row">
+                            <span class="dist-label" title="${label}">${label}</span>
+                            <div class="dist-bar-container">
+                                <div class="dist-bar" style="width: ${data.total_pct}%"></div>
+                            </div>
+                            <span class="dist-value">${data.total_pct.toFixed(1)}% (${data.total_tokens_B}B)</span>
+                        </div>
+                    `;
+                }
+                
+                html += `
+                        </div>
+                    </div>
+                `;
+            } else {
+                // SFT composition display
+                html = `
+                    <div class="comp-section">
+                        <h3>SFT Dataset Info</h3>
+                        <div class="comp-info">
+                            <div class="comp-info-item">
+                                <span class="comp-info-label">Dataset</span>
+                                <span class="comp-info-value">${comp.dataset_name || 'Unknown'}</span>
+                            </div>
+                            <div class="comp-info-item">
+                                <span class="comp-info-label">Version</span>
+                                <span class="comp-info-value">${comp.version || 'Unknown'}</span>
+                            </div>
+                            <div class="comp-info-item">
+                                <span class="comp-info-label">Total Examples</span>
+                                <span class="comp-info-value">${(comp.total_examples || 0).toLocaleString()}</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="comp-section">
+                        <h3>Data Source Distribution</h3>
+                        <div class="dist-chart">
+                `;
+                
+                // Sort by percentage descending
+                const sources = Object.entries(comp.distribution || {})
+                    .sort((a, b) => b[1] - a[1]);
+                
+                const counts = comp.counts || {};
+                
+                for (const [source, pct] of sources) {
+                    const label = source.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+                    const count = counts[source] || 0;
+                    html += `
+                        <div class="dist-row">
+                            <span class="dist-label" title="${label}">${label}</span>
+                            <div class="dist-bar-container">
+                                <div class="dist-bar" style="width: ${Math.min(pct, 100)}%"></div>
+                            </div>
+                            <span class="dist-value">${pct.toFixed(1)}% (${count.toLocaleString()})</span>
+                        </div>
+                    `;
+                }
+                
+                html += `
+                        </div>
+                    </div>
+                `;
+            }
+
+            modalBody.innerHTML = html;
+            compositionModal.classList.add('show');
+        }
+
+        function closeCompositionModal() {
+            compositionModal.classList.remove('show');
+        }
+
+        // Modal event listeners
+        modalClose.addEventListener('click', closeCompositionModal);
+        compositionModal.addEventListener('click', (e) => {
+            if (e.target === compositionModal) {
+                closeCompositionModal();
+            }
+        });
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') {
+                closeCompositionModal();
+            }
+        });
+
+        // Populate compare dropdown
+        function populateCompareDropdown(filter = '') {
+            const filterLower = filter.toLowerCase();
+            const filtered = checkpoints.filter(cp => {
+                if (!filter) return true;
+                return cp.name.toLowerCase().includes(filterLower) || 
+                       cp.rawName.toLowerCase().includes(filterLower);
+            }).slice(0, 20); // Limit to 20 results
+
+            compareDropdown.innerHTML = filtered.map(cp => {
+                const selectedClass = compareSelected.value === cp.rawName ? 'selected' : '';
+                const meta = `${cp.metadata.baseModel} / ${cp.metadata.trainingType} / ${cp.metadata.stage}`;
+                return `<div class="search-dropdown-item ${selectedClass}" data-value="${cp.rawName}" data-name="${cp.name}">
+                    ${cp.name}
+                    <div class="item-meta">${meta}</div>
+                </div>`;
+            }).join('');
+
+            // Add click handlers
+            compareDropdown.querySelectorAll('.search-dropdown-item').forEach(item => {
+                item.addEventListener('click', () => {
+                    compareSelected.value = item.dataset.value;
+                    compareSearch.value = item.dataset.name;
+                    compareSearch.classList.add('has-selection');
+                    compareDropdown.classList.remove('show');
+                    renderTable();
+                });
+            });
+        }
+
+        // Compare search interactions
+        compareSearch.addEventListener('focus', () => {
+            populateCompareDropdown(compareSearch.value);
+            compareDropdown.classList.add('show');
+        });
+
+        compareSearch.addEventListener('input', () => {
+            compareSelected.value = '';
+            compareSearch.classList.remove('has-selection');
+            populateCompareDropdown(compareSearch.value);
+            compareDropdown.classList.add('show');
+        });
+
+        document.addEventListener('click', (e) => {
+            if (!compareSearch.contains(e.target) && !compareDropdown.contains(e.target)) {
+                compareDropdown.classList.remove('show');
+            }
+        });
+
+        // Heat map color calculation
+        function getHeatColor(value, min, max, enabled) {
+            if (!enabled || value === null) return '';
+            const range = max - min;
+            if (range === 0) return '';
+            const ratio = (value - min) / range;
+            // Interpolate between pink-ish red and teal-ish green
+            const r = Math.round(163 + (13 - 163) * ratio);
+            const g = Math.round(69 + (148 - 69) * ratio);
+            const b = Math.round(110 + (138 - 110) * ratio);
+            return `rgba(${r}, ${g}, ${b}, 0.25)`;
+        }
+
+        // Check if a benchmark key matches any pattern in a list
+        function matchesBenchmark(key, patterns) {
+            const keyLower = key.toLowerCase();
+            return patterns.some(p => keyLower.includes(p.toLowerCase()));
+        }
+
+        // Compute average with optional normalization by max scores
+        function computeAverage(cp, benchmarkPatterns, normalize) {
+            const matchingKeys = Object.keys(cp.scores).filter(k => matchesBenchmark(k, benchmarkPatterns));
+            if (matchingKeys.length === 0) return 0;
+            
+            let sum = 0;
+            let count = 0;
+            for (const key of matchingKeys) {
+                const val = cp.scores[key];
+                if (val !== null && val !== undefined) {
+                    if (normalize && maxScores[key] && maxScores[key] > 0) {
+                        sum += val / maxScores[key];
+                    } else {
+                        sum += val / 100; // Default normalization by 100
+                    }
+                    count++;
+                }
+            }
+            return count > 0 ? (sum / count) * 100 : 0;
+        }
+
+        // Get score value for a checkpoint and column
+        function getScore(cp, col, normalize = false) {
+            if (col === "Visual_LC_Avg") {
+                if (normalize) {
+                    return computeAverage(cp, visualLcBenchmarks, true);
+                }
+                return cp[col];
+            }
+            if (col === "LC_Avg") {
+                if (normalize) {
+                    return computeAverage(cp, lcBenchmarks, true);
+                }
+                return cp[col];
+            }
+            if (col === "Overall_Avg") {
+                if (normalize) {
+                    // All score columns
+                    const allBenchmarks = Object.keys(cp.scores);
+                    if (allBenchmarks.length === 0) return 0;
+                    let sum = 0;
+                    let count = 0;
+                    for (const key of allBenchmarks) {
+                        const val = cp.scores[key];
+                        if (val !== null && val !== undefined) {
+                            if (maxScores[key] && maxScores[key] > 0) {
+                                sum += val / maxScores[key];
+                            } else {
+                                sum += val / 100;
+                            }
+                            count++;
+                        }
+                    }
+                    return count > 0 ? (sum / count) * 100 : 0;
+                }
+                return cp[col];
+            }
+            return cp.scores[col];
+        }
+
+        // Format score for display
+        function formatScore(value, col, isBest, deltaMode, baselineValue) {
+            if (value === null || value === undefined) {
+                return '<span class="score-na">-</span>';
+            }
+
+            let displayValue = value;
+            let deltaStr = '';
+
+            if (deltaMode && baselineValue !== null && baselineValue !== undefined) {
+                const delta = value - baselineValue;
+                displayValue = value;
+                if (Math.abs(delta) >= 0.05) {
+                    const sign = delta >= 0 ? '+' : '';
+                    const deltaClass = delta >= 0 ? 'delta-positive' : 'delta-negative';
+                    deltaStr = ` <span class="${deltaClass}">(${sign}${delta.toFixed(1)})</span>`;
+                }
+            }
+
+            const formatted = displayValue.toFixed(1);
+            if (isBest) {
+                return `<span class="score-best">${formatted}</span>${deltaStr}`;
+            }
+            return formatted + deltaStr;
+        }
+
+        // Render table
+        function renderTable() {
+            const searchTerm = searchInput.value.toLowerCase();
+            const stageFilter = filterStage.value;
+            const typeFilter = filterTrainingType.value;
+            const modelFilter = filterBaseModel.value;
+            const baselinesOnly = showBaselinesOnly.checked;
+            const deltaBaselineMode = showDeltaBaseline.checked;
+            const deltaSelectedMode = showDeltaSelected.checked;
+            const heatmapEnabled = showHeatmap.checked;
+            const normalizeAvgsEnabled = normalizeAvgs.checked;
+            const selectedCheckpointName = compareSelected.value;
+
+            // Find selected checkpoint for delta calculation
+            const selectedCheckpoint = checkpoints.find(cp => cp.rawName === selectedCheckpointName);
+
+            // Filter checkpoints
+            let filtered = checkpoints.filter(cp => {
+                const nameMatch = cp.name.toLowerCase().includes(searchTerm) || 
+                                  cp.rawName.toLowerCase().includes(searchTerm);
+                const stageMatch = !stageFilter || cp.metadata.stage === stageFilter;
+                const typeMatch = !typeFilter || cp.metadata.trainingType === typeFilter;
+                const modelMatch = !modelFilter || cp.metadata.baseModel === modelFilter;
+                const baselineMatch = !baselinesOnly || cp.isBaseline;
+                return nameMatch && stageMatch && typeMatch && modelMatch && baselineMatch;
+            });
+
+            // Sort (use normalized values for avg columns if enabled)
+            if (sortDirection !== "none") {
+                filtered.sort((a, b) => {
+                    const aVal = getScore(a, sortColumn, normalizeAvgsEnabled) ?? -Infinity;
+                    const bVal = getScore(b, sortColumn, normalizeAvgsEnabled) ?? -Infinity;
+                    return sortDirection === "desc" ? bVal - aVal : aVal - bVal;
+                });
+            }
+
+            // Update visible count
+            visibleCountEl.textContent = filtered.length;
+
+            // Render rows
+            tbody.innerHTML = filtered.map(cp => {
+                const rowClass = cp.isBaseline ? 'baseline' : '';
+                
+                // Determine which baseline/checkpoint to compare against
+                let compareCheckpoint = null;
+                if (deltaSelectedMode && selectedCheckpoint) {
+                    compareCheckpoint = selectedCheckpoint;
+                } else if (deltaBaselineMode) {
+                    compareCheckpoint = getBaselineForCheckpoint(cp);
+                }
+                const deltaMode = deltaBaselineMode || deltaSelectedMode;
+                
+                const cells = columns.map(col => {
+                    const value = getScore(cp, col, normalizeAvgsEnabled);
+                    const compareValue = compareCheckpoint ? getScore(compareCheckpoint, col, normalizeAvgsEnabled) : null;
+                    // For avg columns with normalization, best is 100; otherwise use bestScores
+                    const bestVal = (avgCols.includes(col) && normalizeAvgsEnabled) ? 100 : bestScores[col];
+                    const isBest = value !== null && Math.abs(value - bestVal) < 0.01;
+                    // For normalized avgs, use 0-100 range for heatmap
+                    const minVal = (avgCols.includes(col) && normalizeAvgsEnabled) ? 0 : minScores[col];
+                    const maxVal = (avgCols.includes(col) && normalizeAvgsEnabled) ? 100 : maxScores[col];
+                    const heatColor = getHeatColor(value, minVal, maxVal, heatmapEnabled);
+                    const style = heatColor ? `background-color: ${heatColor}` : '';
+                    const hiddenClass = visibleColumns.has(col) ? '' : 'col-hidden';
+                    return `<td class="${hiddenClass}" data-col="${col}" style="${style}">${formatScore(value, col, isBest, deltaMode, compareValue)}</td>`;
+                }).join('');
+
+                const hasComposition = cp.composition !== null && cp.composition !== undefined;
+                const cellClass = hasComposition ? 'has-composition' : '';
+                const displayName = cp.isBaseline 
+                    ? `<strong>${cp.name}</strong>` 
+                    : cp.name;
+                return `<tr class="${rowClass}" data-name="${cp.rawName}">
+                    <td class="${cellClass}" title="${cp.path}">${displayName}</td>
+                    ${cells}
+                </tr>`;
+            }).join('');
+
+            // Update header classes
+            document.querySelectorAll('th').forEach(th => {
+                th.classList.remove('sort-asc', 'sort-desc');
+                const col = th.dataset.col;
+                if (col === sortColumn) {
+                    if (sortDirection === 'asc') th.classList.add('sort-asc');
+                    else if (sortDirection === 'desc') th.classList.add('sort-desc');
+                }
+                // Column visibility
+                if (col !== 'Checkpoint') {
+                    th.classList.toggle('col-hidden', !visibleColumns.has(col));
+                }
+            });
+
+            // Update URL
+            updateURL();
+        }
+
+        // Column header click for sorting
+        document.querySelectorAll('th').forEach(th => {
+            th.addEventListener('click', () => {
+                const col = th.dataset.col;
+                if (col === 'Checkpoint') return;
+
+                if (sortColumn === col) {
+                    // Cycle: desc -> asc -> none -> desc
+                    if (sortDirection === 'desc') sortDirection = 'asc';
+                    else if (sortDirection === 'asc') sortDirection = 'none';
+                    else sortDirection = 'desc';
+                } else {
+                    sortColumn = col;
+                    sortDirection = 'desc';
+                }
+                renderTable();
+            });
+        });
+
+        // Column visibility toggle
+        columnToggleBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            columnDropdown.classList.toggle('show');
+        });
+
+        document.addEventListener('click', (e) => {
+            if (!columnDropdown.contains(e.target) && e.target !== columnToggleBtn) {
+                columnDropdown.classList.remove('show');
+            }
+        });
+
+        columnDropdown.querySelectorAll('input').forEach(checkbox => {
+            checkbox.addEventListener('change', () => {
+                const col = checkbox.dataset.col;
+                if (checkbox.checked) {
+                    visibleColumns.add(col);
+                } else {
+                    visibleColumns.delete(col);
+                }
+                renderTable();
+            });
+        });
+
+        // Filter event listeners
+        searchInput.addEventListener('input', renderTable);
+        filterStage.addEventListener('change', renderTable);
+        filterTrainingType.addEventListener('change', renderTable);
+        filterBaseModel.addEventListener('change', renderTable);
+        showBaselinesOnly.addEventListener('change', renderTable);
+        showDeltaBaseline.addEventListener('change', () => {
+            // Disable the other delta mode when this one is enabled
+            if (showDeltaBaseline.checked) showDeltaSelected.checked = false;
+            renderTable();
+        });
+        showDeltaSelected.addEventListener('change', () => {
+            // Disable the other delta mode when this one is enabled
+            if (showDeltaSelected.checked) showDeltaBaseline.checked = false;
+            renderTable();
+        });
+        showHeatmap.addEventListener('change', renderTable);
+        normalizeAvgs.addEventListener('change', renderTable);
+
+        // Reset filters
+        resetFiltersBtn.addEventListener('click', () => {
+            searchInput.value = '';
+            filterStage.value = '';
+            filterTrainingType.value = '';
+            filterBaseModel.value = '';
+            showBaselinesOnly.checked = false;
+            showDeltaBaseline.checked = false;
+            showDeltaSelected.checked = false;
+            showHeatmap.checked = true;
+            normalizeAvgs.checked = false;
+            compareSearch.value = '';
+            compareSelected.value = '';
+            compareSearch.classList.remove('has-selection');
+            sortColumn = 'Visual_LC_Avg';
+            sortDirection = 'desc';
+            visibleColumns = new Set(columns);
+            columnDropdown.querySelectorAll('input').forEach(cb => cb.checked = true);
+            renderTable();
+        });
+
+        // Show toast
+        function showToast(message) {
+            toast.textContent = message;
+            toast.classList.add('show');
+            setTimeout(() => toast.classList.remove('show'), 2500);
+        }
+
+        // Export to LaTeX
+        exportLatexBtn.addEventListener('click', () => {
+            const visibleCols = columns.filter(c => visibleColumns.has(c));
+            const visibleRows = Array.from(tbody.querySelectorAll('tr:not(.hidden)')).map(tr => tr.dataset.name);
+            const filteredCheckpoints = checkpoints.filter(cp => visibleRows.includes(cp.rawName));
+            const normalizeAvgsEnabled = normalizeAvgs.checked;
+            const deltaBaselineMode = showDeltaBaseline.checked;
+            const deltaSelectedMode = showDeltaSelected.checked;
+            const selectedCheckpointName = compareSelected.value;
+            const selectedCheckpoint = checkpoints.find(cp => cp.rawName === selectedCheckpointName);
+            const deltaMode = deltaBaselineMode || deltaSelectedMode;
+
+            // Sort same as display
+            if (sortDirection !== 'none') {
+                filteredCheckpoints.sort((a, b) => {
+                    const aVal = getScore(a, sortColumn, normalizeAvgsEnabled) ?? -Infinity;
+                    const bVal = getScore(b, sortColumn, normalizeAvgsEnabled) ?? -Infinity;
+                    return sortDirection === 'desc' ? bVal - aVal : aVal - bVal;
+                });
+            }
+
+            // LaTeX display names
+            const latexColNames = {"Visual_LC_Avg": "VA", "LC_Avg": "LCA", "Overall_Avg": "OA", "mmlongbench_doc": "MMLBD", "mmlongbench_doc_corrected": "MMLBD-C", "mmlb_131k": "MMLB 128K", "mmlb_32k": "MMLB 32K", "spiqa_eval": "SpiQA", "slidevqa": "SlideVQA", "helmet": "Helmet", "longbench_v2": "LongBench v2", "dude": "DUDE", "tablevqa": "TableVQA", "mmmu_pro": "MMMU-Pro", "tinymmlu": "TinyMMLU", "mm_mt_bench": "MM-MT", "gpqa": "GPQA", "tinygsm8k": "TinyGSM8k", "tinyarc": "TinyArc"};
+            const getLatexColName = (col) => latexColNames[col] || col;
+
+            // Build LaTeX with proper table environment (requires xcolor, graphicx packages)
+            let latex = '% Requires: \\usepackage{xcolor, graphicx}\n';
+            latex += '\\begin{table}[t]\n';
+            latex += '\\begin{center}\n';
+            latex += '\\resizebox{\\textwidth}{!}{%\n';
+            latex += '\\begin{tabular}{l' + 'c'.repeat(visibleCols.length) + '}\n';
+            latex += '\\toprule\n';
+            
+            // Header row with bold centered columns
+            const headerCols = visibleCols.map(col => `\\multicolumn{1}{c}{\\bf ${getLatexColName(col)}}`);
+            latex += '\\multicolumn{1}{l}{\\bf Checkpoint} & ' + headerCols.join(' & ') + ' \\\\\n';
+            latex += '\\midrule\n';
+
+            filteredCheckpoints.forEach(cp => {
+                let name = cp.name.replace(/_/g, '\\_');
+                if (cp.isBaseline) name = '\\textbf{' + name + '}';
+
+                // Determine comparison checkpoint for delta
+                let compareCheckpoint = null;
+                if (deltaSelectedMode && selectedCheckpoint) {
+                    compareCheckpoint = selectedCheckpoint;
+                } else if (deltaBaselineMode) {
+                    compareCheckpoint = getBaselineForCheckpoint(cp);
+                }
+
+                const scores = visibleCols.map(col => {
+                    const value = getScore(cp, col, normalizeAvgsEnabled);
+                    if (value === null || value === undefined) return '-';
+                    const formatted = value.toFixed(1);
+                    const bestVal = (avgCols.includes(col) && normalizeAvgsEnabled) ? 100 : bestScores[col];
+                    const isBest = Math.abs(value - bestVal) < 0.01;
+                    
+                    let scoreStr = isBest ? '\\textbf{' + formatted + '}' : formatted;
+                    
+                    // Add delta if in delta mode
+                    if (deltaMode && compareCheckpoint) {
+                        const compareValue = getScore(compareCheckpoint, col, normalizeAvgsEnabled);
+                        if (compareValue !== null && compareValue !== undefined) {
+                            const delta = value - compareValue;
+                            if (Math.abs(delta) >= 0.05) {
+                                const sign = delta >= 0 ? '+' : '';
+                                const color = delta >= 0 ? 'teal' : 'red';
+                                scoreStr += ` \\textcolor{${color}}{(${sign}${delta.toFixed(1)})}`;
+                            }
+                        }
+                    }
+                    
+                    return scoreStr;
+                });
+
+                latex += name + ' & ' + scores.join(' & ') + ' \\\\\n';
+            });
+
+            latex += '\\bottomrule\n';
+            latex += '\\end{tabular}\n';
+            latex += '}%\n';
+            latex += '\\end{center}\n';
+            latex += '\\caption{TODO: Add caption}\\label{tab:results}\n';
+            latex += '\\end{table}';
+
+            navigator.clipboard.writeText(latex).then(() => {
+                showToast('LaTeX copied to clipboard!');
+            }).catch(() => {
+                showToast('Failed to copy');
+            });
+        });
+
+        // URL state management
+        function updateURL() {
+            const params = new URLSearchParams();
+            if (searchInput.value) params.set('q', searchInput.value);
+            if (filterStage.value) params.set('stage', filterStage.value);
+            if (filterTrainingType.value) params.set('type', filterTrainingType.value);
+            if (filterBaseModel.value) params.set('model', filterBaseModel.value);
+            if (showBaselinesOnly.checked) params.set('baselines', '1');
+            if (showDeltaBaseline.checked) params.set('deltaBase', '1');
+            if (showDeltaSelected.checked) params.set('deltaSel', '1');
+            if (compareSelected.value) params.set('compare', compareSelected.value);
+            if (!showHeatmap.checked) params.set('heatmap', '0');
+            if (normalizeAvgs.checked) params.set('normAvg', '1');
+            if (sortColumn !== 'Visual_LC_Avg') params.set('sort', sortColumn);
+            if (sortDirection !== 'desc') params.set('dir', sortDirection);
+
+            const hiddenCols = columns.filter(c => !visibleColumns.has(c));
+            if (hiddenCols.length > 0) params.set('hide', hiddenCols.join(','));
+
+            const newURL = params.toString() ? `${window.location.pathname}?${params}` : window.location.pathname;
+            history.replaceState(null, '', newURL);
+        }
+
+        function loadFromURL() {
+            const params = new URLSearchParams(window.location.search);
+            if (params.get('q')) searchInput.value = params.get('q');
+            if (params.get('stage')) filterStage.value = params.get('stage');
+            if (params.get('type')) filterTrainingType.value = params.get('type');
+            if (params.get('model')) filterBaseModel.value = params.get('model');
+            if (params.get('baselines') === '1') showBaselinesOnly.checked = true;
+            if (params.get('deltaBase') === '1') showDeltaBaseline.checked = true;
+            if (params.get('deltaSel') === '1') showDeltaSelected.checked = true;
+            if (params.get('compare')) {
+                const compareName = params.get('compare');
+                compareSelected.value = compareName;
+                const cp = checkpoints.find(c => c.rawName === compareName);
+                if (cp) {
+                    compareSearch.value = cp.name;
+                    compareSearch.classList.add('has-selection');
+                }
+            }
+            if (params.get('heatmap') === '0') showHeatmap.checked = false;
+            if (params.get('normAvg') === '1') normalizeAvgs.checked = true;
+            if (params.get('sort')) sortColumn = params.get('sort');
+            if (params.get('dir')) sortDirection = params.get('dir');
+
+            const hideCols = params.get('hide');
+            if (hideCols) {
+                hideCols.split(',').forEach(col => {
+                    visibleColumns.delete(col);
+                    const checkbox = columnDropdown.querySelector(`input[data-col="${col}"]`);
+                    if (checkbox) checkbox.checked = false;
+                });
+            }
+        }
+
+        // Initialize
+        loadFromURL();
+        renderTable();
+
+        // Click handler for checkpoint cells (using event delegation)
+        tbody.addEventListener('click', (e) => {
+            const cell = e.target.closest('td.has-composition');
+            if (cell) {
+                const row = e.target.closest('tr');
+                if (row && row.dataset.name) {
+                    showCompositionModal(row.dataset.name);
+                }
+            }
+        });
+    </script>
+</body>
+</html>
